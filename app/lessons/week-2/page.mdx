@@ -1,0 +1,415 @@
+import { LessonHeader } from "@/components/lesson-header";
+import { LessonNav } from "@/components/lesson-nav";
+
+<LessonHeader slug="week-2" />
+
+## 이번 주에 만들 것
+
+지난 주에는 터미널에서 한 번 물어보고 한 번 답변받는 프로그램이었죠. 이번 주엔 **브라우저에서 대화가 이어지는 챗봇 웹앱**을 만듭니다.
+
+- 대화창(카톡 같은 UI)
+- 이전 대화 기억
+- 답변이 한 글자씩 흘러나오는 **스트리밍** 효과
+
+이걸 다 만드는 데 코드는 **50줄이 채 안 됩니다**. Streamlit이라는 마법 같은 도구 덕분이에요.
+
+## 준비 확인
+
+먼저 지난 주 환경이 그대로인지 확인합시다. VS Code에서 `ai-course` 폴더를 열고, 터미널을 여세요.
+
+```bash
+.venv\Scripts\Activate.ps1
+```
+
+(Mac: `source .venv/bin/activate`)
+
+프롬프트 앞에 `(.venv)`가 붙어있으면 준비 완료입니다.
+
+## Step 1. Streamlit이 뭔가요?
+
+**Streamlit**은 "파이썬 코드만 써도 예쁜 웹앱을 만들어주는 프레임워크"입니다. 원래 웹앱을 만들려면 HTML/CSS/JavaScript 세 가지를 배워야 하는데, Streamlit은 그걸 다 파이썬 한 줄로 처리해줘요.
+
+한 줄 예시:
+
+```python
+import streamlit as st
+st.title("안녕하세요!")
+```
+
+이 두 줄이면 브라우저에 "안녕하세요!"라고 크게 뜨는 웹페이지가 완성됩니다. 대단하죠?
+
+### Streamlit 설치
+
+터미널에서:
+
+```bash
+pip install streamlit
+```
+
+30초쯤 걸리고, `Successfully installed streamlit-...` 라고 나오면 완료.
+
+## Step 2. Hello Streamlit
+
+먼저 아주 간단한 웹앱 하나로 감을 잡아봅시다. `ai-course` 폴더에 새 파일 `hello_streamlit.py`를 만들고:
+
+```python filename="hello_streamlit.py"
+import streamlit as st
+
+st.title("🎉 첫 Streamlit 앱")
+st.write("이 문장이 브라우저에 뜨면 성공입니다!")
+
+이름 = st.text_input("이름이 뭐예요?")
+if 이름:
+    st.write(f"만나서 반가워요, **{이름}**님!")
+```
+
+터미널에서 아래 명령어로 실행합니다. 이번엔 `python`이 아니라 `streamlit run`이에요:
+
+```bash
+streamlit run hello_streamlit.py
+```
+
+**자동으로 브라우저가 열리면서** `http://localhost:8501` 주소가 열립니다. 이름을 입력하면 실시간으로 인사를 받아요.
+
+> 💡 **처음 실행할 때 "이메일 입력하라"고 나오면?** Streamlit이 사용 통계를 받고 싶어서 물어보는 거예요. 그냥 `Enter` 눌러 건너뛰면 됩니다.
+
+앱을 종료하려면 터미널로 돌아와 `Ctrl+C`를 누르세요.
+
+## Step 3. 챗봇 UI 뼈대 만들기
+
+이제 진짜 챗봇을 만듭시다. 새 파일 **`chatbot.py`**:
+
+```python filename="chatbot.py"
+import streamlit as st
+
+st.title("💬 나의 첫 챗봇")
+
+# 사용자 입력을 받는 채팅 입력창 (화면 하단에 고정)
+user_input = st.chat_input("무엇이든 물어보세요...")
+
+if user_input:
+    # 사용자 메시지 표시
+    with st.chat_message("user"):
+        st.write(user_input)
+
+    # AI 응답 (아직은 임시)
+    with st.chat_message("assistant"):
+        st.write(f"당신이 방금 이렇게 말했어요: {user_input}")
+```
+
+실행:
+
+```bash
+streamlit run chatbot.py
+```
+
+카톡처럼 아래에 입력창이 있고, 위에 말풍선이 뜨는 UI가 완성됐어요. **놀랍게도 코드 10줄**로.
+
+하지만 문제가 있죠. 새 메시지를 보내면 **이전 대화가 사라집니다**. 왜냐하면 Streamlit은 매번 스크립트를 처음부터 다시 실행하기 때문이에요.
+
+## Step 4. 대화 기억하기 (Session State)
+
+Streamlit이 매번 재실행되어도 정보를 유지하려면 **session_state**라는 특별한 저장소를 씁니다. `chatbot.py`를 이렇게 바꿔주세요:
+
+```python filename="chatbot.py"
+import streamlit as st
+
+st.title("💬 나의 첫 챗봇")
+
+# 대화 기록 저장소 초기화
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# 지금까지의 모든 메시지 다시 그리기
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+
+# 새 입력 받기
+user_input = st.chat_input("무엇이든 물어보세요...")
+
+if user_input:
+    # 사용자 메시지를 기록에 추가하고 화면에도 표시
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.write(user_input)
+
+    # 임시 AI 응답
+    응답 = f"당신이 방금 이렇게 말했어요: {user_input}"
+    st.session_state.messages.append({"role": "assistant", "content": 응답})
+    with st.chat_message("assistant"):
+        st.write(응답)
+```
+
+### 핵심 아이디어
+
+- `st.session_state.messages`: 브라우저를 새로고침하지 않는 한 계속 유지되는 리스트.
+- `messages.append({"role": ..., "content": ...})`: 새 메시지를 리스트 끝에 추가.
+- 매 실행마다 `for msg in ...`으로 전체 대화를 다시 그림 → 대화가 이어져 보이는 효과.
+
+실행해서 여러 번 대화해보세요. 이제 이전 대화가 남아있죠?
+
+## Step 5. Gemini 연결하기 (드디어 진짜 AI!)
+
+지금까지는 그냥 앵무새처럼 따라했잖아요. 이제 진짜 Gemini를 연결합시다.
+
+```python filename="chatbot.py"
+import os
+import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+
+# 환경변수 로드 & Gemini 클라이언트 준비
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+st.title("💬 나의 첫 챗봇")
+
+# 대화 기록 저장소
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# 지난 대화 다시 그리기
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+
+# 새 입력
+user_input = st.chat_input("무엇이든 물어보세요...")
+
+if user_input:
+    # 사용자 메시지
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.write(user_input)
+
+    # Gemini에게 물어보기
+    with st.chat_message("assistant"):
+        with st.spinner("생각 중..."):
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=user_input,
+            )
+            answer = response.text
+            st.write(answer)
+
+    # AI 답변도 기록에 저장
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+```
+
+`streamlit run chatbot.py`로 실행 → 진짜 AI와 대화하는 챗봇 완성!
+
+`st.spinner("생각 중...")`은 응답을 기다리는 동안 예쁜 로딩 애니메이션을 보여주는 함수예요.
+
+## Step 6. 진짜 대화처럼 — 문맥을 기억하는 챗봇
+
+지금 코드에는 큰 아쉬움이 있어요. Gemini에게는 **바로 지금 이 질문 하나만** 전달합니다. 즉:
+
+- 나: "내 이름은 지은이야"
+- AI: "안녕하세요, 지은님!"
+- 나: "내 이름이 뭐라고?"
+- AI: "죄송해요, 저는 당신의 이름을 모릅니다."
+
+이러면 곤란하죠. **이전 대화 전체를 매번 함께 보내야** AI가 문맥을 이해합니다. 이 부분을 수정합시다:
+
+```python filename="chatbot.py" {35-43}
+import os
+import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+st.title("💬 문맥을 기억하는 챗봇")
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+
+user_input = st.chat_input("무엇이든 물어보세요...")
+
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.write(user_input)
+
+    with st.chat_message("assistant"):
+        with st.spinner("생각 중..."):
+            # ⭐ 지금까지의 모든 대화를 Gemini 포맷으로 변환
+            history = [
+                types.Content(
+                    role="user" if m["role"] == "user" else "model",
+                    parts=[types.Part(text=m["content"])],
+                )
+                for m in st.session_state.messages
+            ]
+
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=history,
+            )
+            answer = response.text
+            st.write(answer)
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+```
+
+### 뭐가 바뀌었나요?
+
+- `from google.genai import types`: Gemini가 이해하는 대화 포맷을 만들기 위한 도구를 추가로 가져옵니다.
+- `history = [...]`: 지금까지의 대화 전체를 Gemini가 이해하는 형식으로 변환.
+- `contents=history`: 한 질문이 아니라 대화 히스토리 전체를 전달.
+
+이제 실행해보세요:
+- "내 이름은 지은이야" → "반가워요, 지은님!"
+- "내 이름 기억해?" → "네, 지은님이라고 하셨죠!"
+
+성공입니다. 🎉
+
+## Step 7. 스트리밍 — 한 글자씩 흘러나오게
+
+ChatGPT를 써봤다면 답변이 한 글자씩 흘러나오는 걸 봤을 거예요. 그게 **스트리밍**입니다. 훨씬 인상적이고, 긴 답변도 답답하지 않게 느껴져요.
+
+Gemini API의 `generate_content` 부분을 이렇게 바꿉니다:
+
+```python filename="chatbot.py의 with st.chat_message('assistant') 블록만"
+    with st.chat_message("assistant"):
+        history = [
+            types.Content(
+                role="user" if m["role"] == "user" else "model",
+                parts=[types.Part(text=m["content"])],
+            )
+            for m in st.session_state.messages
+        ]
+
+        # ⭐ stream=True로 스트리밍 응답 받기
+        stream = client.models.generate_content_stream(
+            model="gemini-2.5-flash",
+            contents=history,
+        )
+
+        # ⭐ Streamlit의 write_stream이 알아서 처리해줌!
+        answer = st.write_stream(chunk.text for chunk in stream)
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+```
+
+`st.write_stream`은 Streamlit이 제공하는 마법 함수예요. 스트리밍 청크(조각)를 하나씩 받아 화면에 한 글자씩 그려주고, 최종 완성된 텍스트를 리턴합니다.
+
+실행해보면 진짜 ChatGPT처럼 답변이 한 글자씩 흘러나옵니다. 여러분 여자친구/남자친구/부모님한테 보여주세요. 감탄합니다. 😎
+
+## Step 8. 사이드바로 옵션 추가하기
+
+Streamlit은 `st.sidebar`를 쓰면 왼쪽에 옵션 패널을 쉽게 붙일 수 있어요. 대화 초기화 버튼과 모델 선택을 추가해봅시다.
+
+`st.title` 바로 아래에 이 블록을 추가하세요:
+
+```python filename="chatbot.py의 st.title 다음"
+with st.sidebar:
+    st.header("설정")
+    model_name = st.selectbox(
+        "AI 모델",
+        ["gemini-2.5-flash", "gemini-2.5-pro"],
+        help="Flash는 빠르고 저렴, Pro는 똑똑하지만 느립니다."
+    )
+    if st.button("🗑️ 대화 초기화"):
+        st.session_state.messages = []
+        st.rerun()
+```
+
+그리고 아래쪽 `generate_content_stream` 함수의 `model="gemini-2.5-flash"` 부분을 `model=model_name`으로 바꿉니다.
+
+이제 사이드바에서 모델을 선택할 수 있고, 대화를 초기화하는 버튼도 있습니다. `st.rerun()`은 "지금 즉시 스크립트를 처음부터 다시 실행하라"는 명령이에요.
+
+## 완성된 최종 코드
+
+```python filename="chatbot.py"
+import os
+import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+st.title("💬 나의 챗봇")
+
+with st.sidebar:
+    st.header("설정")
+    model_name = st.selectbox(
+        "AI 모델",
+        ["gemini-2.5-flash", "gemini-2.5-pro"],
+        help="Flash는 빠르고 저렴, Pro는 똑똑하지만 느립니다."
+    )
+    if st.button("🗑️ 대화 초기화"):
+        st.session_state.messages = []
+        st.rerun()
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+
+user_input = st.chat_input("무엇이든 물어보세요...")
+
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.write(user_input)
+
+    with st.chat_message("assistant"):
+        history = [
+            types.Content(
+                role="user" if m["role"] == "user" else "model",
+                parts=[types.Part(text=m["content"])],
+            )
+            for m in st.session_state.messages
+        ]
+        stream = client.models.generate_content_stream(
+            model=model_name,
+            contents=history,
+        )
+        answer = st.write_stream(chunk.text for chunk in stream)
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+```
+
+## 자주 발생하는 오류
+
+### ❌ `streamlit: command not found`
+
+**원인**: 가상환경이 비활성화되었거나 다른 터미널.
+
+**해결**: `.venv\Scripts\Activate.ps1` 다시 실행. `(.venv)` 확인 후 `pip install streamlit`.
+
+### ❌ 브라우저가 자동으로 안 열림
+
+**해결**: 터미널에 표시된 `Local URL: http://localhost:8501`을 복사해 직접 브라우저에 붙여넣기.
+
+### ❌ 코드를 수정했는데 반영이 안 됨
+
+**해결**: Streamlit은 파일 저장 시 자동 감지하지만, 확실하게 하려면 브라우저에서 앱 화면 오른쪽 위 `⋮` → **"Rerun"** 클릭. 또는 앱 화면에서 `R` 키 누르기.
+
+### ❌ 대화가 이상하게 반복되거나 이전 답변이 안 사라짐
+
+**해결**: 사이드바의 **"대화 초기화"** 버튼 클릭. 그래도 이상하면 브라우저 새로고침(`F5`).
+
+## 이번 주 과제
+
+1. 사이드바에 **"온도(temperature)"** 슬라이더를 추가하고, Gemini에게 전달하세요. (힌트: `st.slider("온도", 0.0, 2.0, 1.0)` + `config=types.GenerateContentConfig(temperature=값)`)
+2. 챗봇 페이지 제목과 아이콘을 여러분 스타일로 바꿔보세요.
+3. **선택**: 대화 내용을 텍스트 파일로 다운로드하는 버튼을 추가해보세요. (힌트: `st.download_button`)
+
+## 다음 주 예고
+
+Week 3에서는 챗봇에 **성격**을 부여합니다. 시스템 프롬프트로 조선시대 선비 챗봇, 극단적으로 츤데레인 챗봇, 셰프처럼 요리 알려주는 챗봇을 만들 거예요. **프롬프트 엔지니어링**의 세계로 갑니다.
+
+<LessonNav slug="week-2" />

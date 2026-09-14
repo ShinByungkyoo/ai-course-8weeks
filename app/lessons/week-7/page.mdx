@@ -1,0 +1,436 @@
+import { LessonHeader } from "@/components/lesson-header";
+import { LessonNav } from "@/components/lesson-nav";
+
+<LessonHeader slug="week-7" />
+
+## 이번 주에 만들 것
+
+AI가 스스로 판단해서 **필요한 도구를 골라 쓰는 챗봇**을 만듭니다.
+
+- "128 × 47은?" → 계산기 도구 사용 → 정확한 결과
+- "지금 몇 시야?" → 시계 도구 사용 → 현재 시각
+- "최근 애플 실적 뉴스" → 웹 검색 도구 → 최신 정보
+- "안녕! 오늘 기분 어때?" → 도구 없이 그냥 대화
+
+**같은 챗봇**이 상황에 맞게 다르게 행동합니다. 이걸 **에이전트(agent)**라고 부릅니다.
+
+## 왜 도구가 필요한가요?
+
+지난주까지 만든 챗봇들의 세 가지 약점:
+
+1. **최신 정보를 모름** — Gemini는 학습 데이터 시점(2025년쯤) 이후 뉴스를 모릅니다.
+2. **정확한 계산이 약함** — LLM은 "125 × 8 = 1000"을 틀리게 답할 수 있어요.
+3. **실제 행동을 못함** — 파일 저장, 이메일 발송 같은 걸 못합니다.
+
+이걸 해결하는 방법이 **도구(tool) 제공**입니다.
+
+## Function Calling — 개념
+
+Gemini는 여러분이 만든 파이썬 함수를 **호출할 능력**이 있어요. 원리는 이렇습니다:
+
+```
+[사용자] "128 × 47은?"
+    ↓
+[AI 판단] "이건 계산이 필요해. calculator 도구를 써야겠다."
+    ↓
+[AI가 함수 호출 요청] calculator(expression="128 * 47")
+    ↓
+[우리 코드가 실제 함수 실행] → 결과: 6016
+    ↓
+[결과를 AI에 전달]
+    ↓
+[AI 최종 답변] "128 × 47은 6016입니다."
+```
+
+여러분이 할 일: **함수를 잘 정의하고 이름·설명을 명확히** 붙이는 것. 나머지는 Gemini가 알아서 판단합니다.
+
+## Step 1. 첫 도구 사용 — 계산기
+
+새 파일 **`agent_test.py`**:
+
+```python filename="agent_test.py"
+import os
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+# --- 도구 함수 정의 ---
+def calculator(expression: str) -> str:
+    """
+    수학 계산을 수행합니다.
+    Args:
+        expression: 계산할 수식. 예: "128 * 47", "sqrt(144)", "sin(pi/2)"
+    Returns:
+        계산 결과를 문자열로.
+    """
+    import math
+    # 안전한 이름공간에서 계산
+    allowed = {"sqrt": math.sqrt, "sin": math.sin, "cos": math.cos,
+               "pi": math.pi, "log": math.log, "exp": math.exp}
+    try:
+        result = eval(expression, {"__builtins__": {}}, allowed)
+        return str(result)
+    except Exception as e:
+        return f"계산 오류: {e}"
+
+# --- Gemini에게 도구 등록 ---
+tools = [calculator]
+
+# --- 대화 ---
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="128 곱하기 47이 얼마야?",
+    config=types.GenerateContentConfig(tools=tools),
+)
+
+print(response.text)
+```
+
+실행:
+
+```bash
+python agent_test.py
+```
+
+AI가 자동으로 `calculator` 함수를 호출해서 답을 냅니다.
+
+### 핵심 포인트
+
+- **함수 시그니처가 곧 명세**: `expression: str`이라는 타입 힌트로 Gemini는 "문자열을 넣어야 하는구나"를 이해합니다.
+- **Docstring이 곧 설명서**: `"""수학 계산을 수행합니다. Args: ..."""` 부분을 Gemini가 읽고 언제 이 함수를 써야 하는지 판단합니다.
+- **명확할수록 잘 씁니다**: 함수 이름과 docstring을 대충 쓰면 Gemini도 대충 씁니다.
+
+## Step 2. 여러 도구 등록하기
+
+한 챗봇에 도구를 여러 개 붙일 수 있어요. **`multi_tool.py`**:
+
+```python filename="multi_tool.py"
+import os
+from datetime import datetime
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+# --- 도구 1: 계산기 ---
+def calculator(expression: str) -> str:
+    """
+    수학 계산을 수행합니다. +, -, *, /, **, sqrt, sin, cos, pi, log, exp 지원.
+    Args:
+        expression: 파이썬 수식 문자열. 예: "128 * 47", "sqrt(2) * 100"
+    """
+    import math
+    allowed = {"sqrt": math.sqrt, "sin": math.sin, "cos": math.cos,
+               "pi": math.pi, "log": math.log, "exp": math.exp}
+    try:
+        return str(eval(expression, {"__builtins__": {}}, allowed))
+    except Exception as e:
+        return f"계산 오류: {e}"
+
+# --- 도구 2: 현재 시각 ---
+def get_current_time() -> str:
+    """
+    현재 한국 시간을 YYYY-MM-DD HH:MM:SS 형식으로 리턴합니다.
+    "지금 몇 시야?", "오늘 며칠?" 같은 시간·날짜 질문에 사용하세요.
+    """
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# --- 도구 3: 한국어 → 로마자 변환 ---
+def korean_to_romanization(text: str) -> str:
+    """
+    한국어를 대략적인 로마자 표기로 변환합니다.
+    Args:
+        text: 로마자로 바꿀 한국어 문자열
+    """
+    # 간단한 예시 — 실제로는 정교한 라이브러리를 써야 함
+    mapping = {"안녕": "Annyeong", "하세요": "haseyo", "감사": "Gamsa"}
+    for k, v in mapping.items():
+        text = text.replace(k, v)
+    return text
+
+# --- 도구 등록 ---
+tools = [calculator, get_current_time, korean_to_romanization]
+
+# --- 자유 대화 테스트 ---
+질문들 = [
+    "128 × 47이 얼마야?",
+    "지금 몇 시야?",
+    "안녕하세요를 로마자로 어떻게 써?",
+    "고마워!",  # 도구 없이 그냥 대화
+]
+
+for 질문 in 질문들:
+    print(f"\n👉 {질문}")
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=질문,
+        config=types.GenerateContentConfig(tools=tools),
+    )
+    print(f"🤖 {response.text}")
+```
+
+실행하면 AI가 질문마다 다른 도구를 (또는 아무 도구도 안) 쓰는 걸 볼 수 있어요.
+
+## Step 3. 웹 검색 도구 (Google Search Grounding)
+
+Gemini는 **Google 검색을 내장**하고 있어요. 별도 라이브러리 없이 최신 정보를 가져올 수 있습니다.
+
+```python filename="web_search.py"
+import os
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+# 도구로 GoogleSearch 등록
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="애플의 최근 실적 발표 내용 알려줘",
+    config=types.GenerateContentConfig(
+        tools=[types.Tool(google_search=types.GoogleSearch())],
+    ),
+)
+
+print(response.text)
+
+# 출처 링크 확인
+if response.candidates[0].grounding_metadata:
+    print("\n📎 참고한 출처:")
+    for chunk in response.candidates[0].grounding_metadata.grounding_chunks or []:
+        print(f"- {chunk.web.title}: {chunk.web.uri}")
+```
+
+**놀랍죠?** 별도 라이브러리 하나 없이 최신 뉴스 검색이 돼요.
+
+## Step 4. 통합 에이전트 앱
+
+이제 모든 걸 합칩시다. Streamlit + 여러 도구 + 웹 검색이 통합된 진짜 에이전트를. **`agent_chatbot.py`**:
+
+```python filename="agent_chatbot.py"
+import os
+from datetime import datetime
+import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+st.title("🤖 도구를 쓰는 AI 에이전트")
+st.caption("계산, 시간 확인, 웹 검색을 스스로 골라서 처리합니다.")
+
+# --- 도구 함수들 ---
+def calculator(expression: str) -> str:
+    """수학 계산. sqrt, sin, cos, pi, log 지원."""
+    import math
+    allowed = {"sqrt": math.sqrt, "sin": math.sin, "cos": math.cos,
+               "pi": math.pi, "log": math.log, "exp": math.exp}
+    try:
+        return str(eval(expression, {"__builtins__": {}}, allowed))
+    except Exception as e:
+        return f"오류: {e}"
+
+def get_current_time() -> str:
+    """현재 한국 시각과 날짜를 YYYY-MM-DD HH:MM:SS 형식으로 리턴."""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S (%A)")
+
+def save_note(title: str, content: str) -> str:
+    """
+    메모를 notes.md 파일에 저장합니다.
+    Args:
+        title: 메모 제목
+        content: 메모 본문
+    """
+    with open("notes.md", "a", encoding="utf-8") as f:
+        f.write(f"\n## {title} ({datetime.now():%Y-%m-%d %H:%M})\n{content}\n")
+    return f"'{title}' 메모가 notes.md에 저장되었습니다."
+
+# 파이썬 함수 도구 목록
+python_tools = [calculator, get_current_time, save_note]
+
+# 사이드바에 도구 목록 표시
+with st.sidebar:
+    st.header("🧰 사용 가능한 도구")
+    st.markdown("""
+- 🧮 **calculator** — 수학 계산
+- 🕐 **get_current_time** — 현재 시각
+- 📝 **save_note** — 메모 저장
+- 🌐 **google_search** — 웹 검색
+""")
+
+    use_search = st.checkbox("🌐 웹 검색 활성화", value=True)
+
+    if st.button("🗑️ 대화 초기화"):
+        st.session_state.messages = []
+        st.rerun()
+
+# 대화 기록 초기화
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# 지난 대화 표시
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+        # 도구 사용 기록이 있으면 접힌 영역에 표시
+        if msg.get("tool_uses"):
+            with st.expander(f"🔧 사용한 도구 {len(msg['tool_uses'])}개"):
+                for tool_use in msg["tool_uses"]:
+                    st.code(f"{tool_use}", language="python")
+
+user_input = st.chat_input("무엇이든 물어보세요...")
+
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.write(user_input)
+
+    with st.chat_message("assistant"):
+        with st.spinner("생각하고 있어요..."):
+            # 대화 히스토리 준비
+            history = [
+                types.Content(
+                    role="user" if m["role"] == "user" else "model",
+                    parts=[types.Part(text=m["content"])],
+                )
+                for m in st.session_state.messages
+            ]
+
+            # 도구 목록 조립
+            tools = list(python_tools)
+            if use_search:
+                tools.append(types.Tool(google_search=types.GoogleSearch()))
+
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=history,
+                config=types.GenerateContentConfig(tools=tools),
+            )
+            answer = response.text
+            st.write(answer)
+
+            # 검색을 사용한 경우 출처 표시
+            grounding = response.candidates[0].grounding_metadata if response.candidates else None
+            if grounding and grounding.grounding_chunks:
+                with st.expander(f"📎 참고한 웹 페이지 {len(grounding.grounding_chunks)}개"):
+                    for chunk in grounding.grounding_chunks:
+                        if chunk.web:
+                            st.markdown(f"- [{chunk.web.title}]({chunk.web.uri})")
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+```
+
+실행:
+
+```bash
+streamlit run agent_chatbot.py
+```
+
+## Step 5. 다양한 질문 던져보기
+
+에이전트를 다양하게 시험해보세요:
+
+- 🧮 "루트 2 곱하기 100은?" → 계산기 자동 사용
+- 🕐 "지금 몇 시야?" → 시간 도구 자동 사용
+- 🌐 "오늘 코스피 지수는?" → 웹 검색 자동 사용
+- 📝 "'파이썬 공부'라는 제목으로 '오늘 함수 호출 배움'을 메모로 저장해줘" → 메모 저장 도구 자동 사용
+- 💬 "너는 뭐 할 줄 알아?" → 도구 없이 자기 소개
+- 🎯 "지금 서울 날씨 알아보고, 우산 필요한지 알려줘" → **웹 검색 + 판단**
+
+마지막 예시가 진짜 놀라운 순간입니다. AI가 스스로:
+1. 웹 검색으로 날씨 정보 가져와서
+2. 판단해서 우산 필요 여부 답변
+
+이런 걸 **에이전트적 행동(agentic behavior)**이라고 부릅니다.
+
+## Step 6. 도구 정의 잘 쓰는 팁
+
+Gemini가 언제 어떤 도구를 쓸지 결정하는 것은 100% **함수 이름 + docstring + 파라미터 타입**에 달려 있어요.
+
+### 좋은 예 vs 나쁜 예
+
+❌ **나쁜 예**:
+```python
+def calc(x):
+    """계산."""
+    ...
+```
+- 이름이 모호함
+- docstring이 너무 짧음
+- 파라미터 타입 없음
+
+✅ **좋은 예**:
+```python
+def calculator(expression: str) -> str:
+    """
+    수학 계산을 정확히 수행합니다. AI가 큰 수의 곱셈이나
+    복잡한 수식을 다룰 때 사용하세요.
+    
+    Args:
+        expression: 계산할 파이썬 수식 문자열.
+                   지원: +, -, *, /, **, sqrt(), sin(), cos(), pi
+                   예: "128 * 47", "sqrt(2)"
+    Returns:
+        계산 결과를 문자열로.
+    """
+    ...
+```
+
+### 명확한 이름 + 상세 설명 = 정확한 도구 선택
+
+## 자주 발생하는 오류
+
+### ❌ AI가 도구를 안 쓰고 스스로 계산하려 함 (틀린 답)
+
+**원인**: 도구 설명이 모호하거나, AI가 자기가 답할 수 있다고 판단.
+
+**해결**: 
+1. Docstring을 더 명확히. "AI는 큰 수 계산이 부정확하므로 항상 이 도구를 사용해야 합니다"처럼 강조.
+2. 시스템 프롬프트에 규칙 명시: "숫자 계산은 반드시 calculator 도구를 사용한다."
+
+### ❌ `TypeError: Tool schema ...`
+
+**원인**: 함수의 타입 힌트가 잘못됨.
+
+**해결**: 모든 파라미터에 `str`, `int`, `float`, `bool`, `list`, `dict` 같은 기본 타입 힌트를 명시.
+
+### ❌ Google Search가 아무것도 못 찾음
+
+**원인**: Grounding이 활성화되지 않은 계정. 유료 요금제여야 사용 가능한 경우 있음.
+
+**해결**: Google Cloud Console에서 Vertex AI Search API 활성화. 유료 요금제 확인.
+
+### ❌ 도구를 여러 번 호출하다가 무한 루프
+
+**원인**: 도구 실행 결과가 매번 이상해서 AI가 계속 재시도.
+
+**해결**: 도구 함수에서 예외 처리를 잘 하고, 실패 시 명확한 오류 메시지 리턴.
+
+## 이번 주 과제
+
+1. 여러분만의 도구 함수 하나를 추가하세요. 예:
+   - 랜덤 로또 번호 생성기
+   - 두 통화 환율 계산 (환율은 하드코딩 OK)
+   - 파일 내용 읽기 도구
+2. 시스템 프롬프트를 추가해서 에이전트에게 성격을 부여하세요.
+3. **선택 도전**: 요리 어시스턴트를 만드세요. 도구:
+   - 재료로 요리 검색 (Google Search)
+   - 요리 시간 타이머
+   - 레시피를 파일로 저장
+4. **초 도전**: 도구 실행 로그(어떤 도구가 언제 호출되었는지)를 화면에 실시간 표시하세요.
+
+## 다음 주 예고
+
+마지막 주! Week 8에서는 지금까지 만든 앱들을 **인터넷에 무료로 배포**합니다. **Streamlit Community Cloud**를 이용하면 여러분의 앱을 전 세계 누구나 접속할 수 있는 URL로 만들 수 있어요.
+
+그리고 **여러분만의 최종 프로젝트**를 시작합니다. 8주간 배운 걸 조합해 정말 여러분에게 필요한 앱 하나를 만드세요. 🚀
+
+<LessonNav slug="week-7" />

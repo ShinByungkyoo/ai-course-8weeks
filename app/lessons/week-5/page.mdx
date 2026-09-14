@@ -1,0 +1,411 @@
+import { LessonHeader } from "@/components/lesson-header";
+import { LessonNav } from "@/components/lesson-nav";
+
+<LessonHeader slug="week-5" />
+
+## 이번 주에 만들 것
+
+지금까지 만든 챗봇들은 **텍스트만** 다뤘어요. 이번 주는 **이미지도 이해하는 AI**를 만듭니다.
+
+### 두 개의 앱을 만듭니다
+
+1. **이미지 설명 앱**: 사진을 올리면 무엇이 보이는지 설명.
+2. **영수증 정리 앱**: 영수증 사진을 올리면 상호명·날짜·금액·품목을 자동으로 표로 정리.
+
+두 번째 앱은 진짜로 유용해요. 여러분 지갑에 쌓인 영수증들을 폰으로 찍기만 하면 가계부가 자동으로 채워집니다.
+
+## Gemini는 어떻게 이미지를 볼까요?
+
+Gemini 2.5 계열 모델들은 **멀티모달(multimodal)**입니다. 텍스트, 이미지, 오디오, 비디오까지 이해할 수 있어요. 우리가 지금까지 `contents=질문`이라고 텍스트만 넣었잖아요? 여기에 이미지 파일을 함께 넣기만 하면 끝입니다.
+
+```python
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents=[
+        "이 사진에 무엇이 보이나요?",
+        image_part,  # ← 이미지도 리스트에 넣기
+    ],
+)
+```
+
+그럼 시작해봅시다.
+
+## Step 1. 이미지 파일 준비 & 필요한 라이브러리
+
+특별히 새로 설치할 라이브러리는 없어요. `google-genai`와 `streamlit`만 있으면 됩니다.
+
+`ai-course` 폴더에 `images` 하위 폴더를 만들고, 테스트용 이미지 1~2장을 넣어두세요 (`test.jpg` 같은 이름으로). 스마트폰으로 찍은 아무 사진이면 OK.
+
+## Step 2. 첫 이미지 설명 프로그램
+
+새 파일 **`image_describe.py`**:
+
+```python filename="image_describe.py"
+import os
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+# 이미지 파일을 읽어서 바이트로
+with open("images/test.jpg", "rb") as f:
+    image_bytes = f.read()
+
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents=[
+        "이 사진에 무엇이 보이나요? 한국어로 상세하게 설명해주세요.",
+        types.Part.from_bytes(
+            data=image_bytes,
+            mime_type="image/jpeg",  # png면 image/png
+        ),
+    ],
+)
+
+print(response.text)
+```
+
+실행:
+
+```bash
+python image_describe.py
+```
+
+AI가 사진을 보고 "이 사진에는 파란색 티셔츠를 입은 사람이..." 같은 상세한 설명을 해줍니다.
+
+### `types.Part.from_bytes`가 뭐예요?
+
+**Part**는 Gemini에게 전달할 콘텐츠의 조각입니다. 텍스트, 이미지, 오디오 등 종류마다 만드는 방법이 달라요:
+
+- 텍스트: `types.Part(text="안녕")`
+- 이미지: `types.Part.from_bytes(data=바이트, mime_type="image/jpeg")`
+
+**MIME 타입**은 파일 종류를 알려주는 표준 표시입니다. JPG는 `image/jpeg`, PNG는 `image/png`, WebP는 `image/webp`.
+
+## Step 3. Streamlit으로 이미지 업로드 앱
+
+지금은 파일이 폴더에 있어야 하잖아요. 브라우저에서 업로드할 수 있게 바꿉시다. **`image_app.py`**:
+
+```python filename="image_app.py"
+import os
+import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+st.title("👁️ 이미지 설명 AI")
+st.caption("사진을 올리면 AI가 무엇이 보이는지 알려드립니다.")
+
+uploaded = st.file_uploader("이미지 파일 업로드", type=["jpg", "jpeg", "png", "webp"])
+
+if uploaded:
+    st.image(uploaded, caption="업로드한 이미지", use_container_width=True)
+
+    question = st.text_input(
+        "AI에게 물어볼 질문",
+        value="이 사진에 무엇이 보이나요? 한국어로 상세히 설명해주세요.",
+    )
+
+    if st.button("🔍 분석하기", type="primary"):
+        with st.spinner("AI가 이미지를 보고 있어요..."):
+            # MIME 타입 자동 판단
+            mime = uploaded.type or "image/jpeg"
+
+            stream = client.models.generate_content_stream(
+                model="gemini-2.5-flash",
+                contents=[
+                    question,
+                    types.Part.from_bytes(
+                        data=uploaded.getvalue(),
+                        mime_type=mime,
+                    ),
+                ],
+            )
+            answer = st.write_stream(chunk.text for chunk in stream)
+```
+
+실행:
+
+```bash
+streamlit run image_app.py
+```
+
+사진 아무거나 올려보세요. 반려동물 사진, 여행 사진, 음식 사진… 뭐든 상세히 설명해줍니다.
+
+### 여러 이미지 한꺼번에?
+
+이런 것도 가능해요:
+- "이 두 사진에서 다른 점 찾아줘" (다른 그림 찾기)
+- "이 5장 중 가장 잘 나온 사진 골라줘"
+
+`contents=[텍스트, 이미지1_part, 이미지2_part, ...]`로 리스트에 여러 이미지를 넣으면 됩니다.
+
+## Step 4. ⭐ 영수증 정리 앱
+
+여기가 이번 주의 하이라이트. **영수증 사진 → 구조화된 표**로 변환하는 앱입니다.
+
+핵심 트릭: AI에게 **JSON 형식으로 답하라고 지시**하는 거예요. 그러면 컴퓨터가 다루기 쉬운 구조화된 데이터가 나옵니다.
+
+새 파일 **`receipt_tracker.py`**:
+
+```python filename="receipt_tracker.py"
+import os
+import json
+import streamlit as st
+import pandas as pd
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+st.title("🧾 영수증 자동 정리")
+st.caption("영수증 사진을 올리면 상호·날짜·금액·품목을 자동으로 표로 정리합니다.")
+
+# JSON 응답 스키마 정의
+RECEIPT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "store_name": {"type": "string", "description": "상호명"},
+        "date": {"type": "string", "description": "구매 날짜 (YYYY-MM-DD 형식)"},
+        "total_amount": {"type": "number", "description": "총 결제 금액 (숫자만)"},
+        "items": {
+            "type": "array",
+            "description": "구매한 품목 리스트",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "품목 이름"},
+                    "quantity": {"type": "integer", "description": "수량"},
+                    "price": {"type": "number", "description": "가격"},
+                },
+                "required": ["name", "price"],
+            },
+        },
+        "category": {
+            "type": "string",
+            "description": "카테고리",
+            "enum": ["식비", "카페", "쇼핑", "교통", "의료", "기타"],
+        },
+    },
+    "required": ["store_name", "total_amount", "items", "category"],
+}
+
+SYSTEM_PROMPT = """
+당신은 한국 영수증 정보 추출 전문가입니다.
+영수증 이미지에서 다음 정보를 정확히 추출해서 JSON으로 리턴하세요:
+
+- store_name: 상호명 (영수증 상단에 보통 있음)
+- date: 구매 날짜 (YYYY-MM-DD)
+- total_amount: 총 결제 금액 (숫자만, 원화 표시 제외)
+- items: 개별 품목 리스트 (품목 이름, 수량, 가격)
+- category: 식비/카페/쇼핑/교통/의료/기타 중 하나
+
+읽을 수 없는 부분은 null로 두세요.
+"""
+
+# 세션에 누적된 영수증 저장
+if "receipts" not in st.session_state:
+    st.session_state.receipts = []
+
+uploaded = st.file_uploader(
+    "영수증 사진 업로드 (여러 장 가능)",
+    type=["jpg", "jpeg", "png"],
+    accept_multiple_files=True,
+)
+
+if uploaded and st.button("🔍 분석하기", type="primary"):
+    for file in uploaded:
+        with st.spinner(f"{file.name} 분석 중..."):
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    "이 영수증을 분석해서 JSON으로 정리해주세요.",
+                    types.Part.from_bytes(
+                        data=file.getvalue(),
+                        mime_type=file.type or "image/jpeg",
+                    ),
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    response_mime_type="application/json",
+                    response_schema=RECEIPT_SCHEMA,
+                ),
+            )
+
+            try:
+                data = json.loads(response.text)
+                data["filename"] = file.name
+                st.session_state.receipts.append(data)
+            except json.JSONDecodeError:
+                st.error(f"❌ {file.name} 분석 실패. 사진이 흐리거나 각도가 안 좋을 수 있어요.")
+
+# 누적된 영수증들 표로 보여주기
+if st.session_state.receipts:
+    st.subheader(f"📊 총 {len(st.session_state.receipts)}개 영수증")
+
+    # 요약 표
+    summary = pd.DataFrame([
+        {
+            "파일": r["filename"],
+            "상호": r.get("store_name"),
+            "날짜": r.get("date"),
+            "카테고리": r.get("category"),
+            "총액": f"{r.get('total_amount', 0):,.0f}원",
+        }
+        for r in st.session_state.receipts
+    ])
+    st.dataframe(summary, use_container_width=True, hide_index=True)
+
+    # 총 지출액
+    total = sum(r.get("total_amount", 0) or 0 for r in st.session_state.receipts)
+    st.metric("총 지출액", f"{total:,.0f}원")
+
+    # 카테고리별 지출
+    if len(st.session_state.receipts) > 1:
+        cat_df = pd.DataFrame(st.session_state.receipts).groupby("category")["total_amount"].sum()
+        st.bar_chart(cat_df)
+
+    # 각 영수증 상세
+    for r in st.session_state.receipts:
+        with st.expander(f"📄 {r['filename']} - {r.get('store_name', '?')}"):
+            st.json(r)
+
+    if st.button("🗑️ 전체 초기화"):
+        st.session_state.receipts = []
+        st.rerun()
+```
+
+이번 코드에는 새로운 개념 몇 가지가 있어요. 하나씩 짚어봅시다.
+
+### 새 개념 1: `pandas`
+
+`pandas`는 엑셀처럼 표 형태 데이터를 다루는 라이브러리예요. `st.dataframe`으로 예쁜 표를 그릴 수 있습니다. 설치:
+
+```bash
+pip install pandas
+```
+
+### 새 개념 2: JSON 모드 (Structured Output)
+
+`config`에 두 개를 추가했어요:
+
+```python
+response_mime_type="application/json",
+response_schema=RECEIPT_SCHEMA,
+```
+
+이건 Gemini에게 **"자유롭게 답변하지 말고 이 JSON 스키마 형식으로만 답해"**라고 강제하는 옵션입니다. 그럼 매번 정확히 같은 구조의 JSON이 리턴되어 코드에서 다루기 쉬워요.
+
+이게 없으면 AI가 "이 영수증은 스타벅스에서 아메리카노를 5,500원에..." 같은 문장으로 답할 텐데, 이러면 코드에서 파싱하기 정말 어려워요.
+
+### 새 개념 3: enum
+
+`category`의 `"enum": ["식비", "카페", ...]`은 AI가 이 값들 중에서만 고르라고 제한하는 거예요. 자유롭게 카테고리를 만들지 못하게.
+
+## Step 5. 실행해서 테스트하기
+
+```bash
+streamlit run receipt_tracker.py
+```
+
+여러 영수증 사진을 한 번에 업로드해보세요. 편의점, 카페, 식당 영수증 다 넣어보세요.
+
+**결과**: 각 영수증이 표에 정리되고, 총 지출액 카드가 뜨고, 카테고리별 막대그래프가 나옵니다.
+
+이거 진짜로 유용해요. 여러분 지갑에 있는 영수증들 다 찍어서 넣어보세요. 진짜 가계부가 됩니다. 🎉
+
+## Step 6. 조금 더 재밌게 — 사진 감상평 봇
+
+이미지 이해 응용을 하나 더. **`photo_critic.py`** — 사진 감상평을 재밌게 해주는 봇:
+
+```python filename="photo_critic.py"
+import os
+import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+SYSTEM = """
+당신은 유명한 사진 평론가 '박광휘'입니다.
+사용자가 올린 사진에 대해 다음을 평합니다:
+
+1. 구도와 프레이밍 (3점 만점)
+2. 색감과 조명 (3점 만점)
+3. 감정 표현 (3점 만점)
+4. 총평 (2~3문장, 특유의 시적 표현으로)
+5. 한 줄 별점 (⭐로 표시)
+
+말투는 우아하고 지적이며, 가끔 과장된 감탄사를 씁니다.
+"""
+
+st.title("📸 사진 평론가 박광휘")
+st.caption("당신의 사진에 대한 진지한(?) 감상평")
+
+uploaded = st.file_uploader("사진을 올려주세요", type=["jpg", "jpeg", "png"])
+
+if uploaded:
+    st.image(uploaded, use_container_width=True)
+    if st.button("평가받기", type="primary"):
+        with st.spinner("박광휘 평론가가 감상 중..."):
+            stream = client.models.generate_content_stream(
+                model="gemini-2.5-flash",
+                contents=[
+                    "제 사진을 평가해주세요.",
+                    types.Part.from_bytes(
+                        data=uploaded.getvalue(),
+                        mime_type=uploaded.type or "image/jpeg",
+                    ),
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM,
+                    temperature=1.0,
+                ),
+            )
+            st.write_stream(chunk.text for chunk in stream)
+```
+
+이거 친구들 사진 올려보세요. 다들 웃어 죽어요. 🤣
+
+## 자주 발생하는 오류
+
+### ❌ `Unsupported MIME type`
+
+**원인**: 이미지 파일 형식이 지원되지 않음.
+
+**해결**: JPG, PNG, WebP만 지원. HEIC(iPhone)이면 브라우저로 다운로드하면 자동으로 JPG로 변환됩니다.
+
+### ❌ 영수증 인식이 잘 안 됨
+
+**해결**:
+1. **밝은 곳에서** 찍기. 흐리면 인식률 급락.
+2. **평평하게** 놓고 위에서 수직으로 찍기.
+3. **한 번에 한 영수증만** 나오게.
+4. 모델을 `gemini-2.5-pro`로 바꾸면 정확도 ↑ (비용도 ↑).
+
+### ❌ JSON 파싱 오류
+
+**원인**: AI가 JSON 스키마를 완전히 따르지 못함 (드물지만 발생).
+
+**해결**: `response_schema`를 더 엄격하게, `required` 필드를 명확히 지정.
+
+## 이번 주 과제
+
+1. 여러분 여행 사진 5장을 업로드해 AI에게 여행 후기를 요약하게 하세요.
+2. 영수증 앱에 **"CSV로 내보내기"** 버튼을 추가하세요. (힌트: `st.download_button` + `df.to_csv`)
+3. **선택 도전**: 옷장 사진을 올리면 코디를 추천해주는 앱을 만들어보세요.
+
+## 다음 주 예고
+
+Week 6에서는 **유튜브 영상 요약봇**을 만듭니다. URL만 넣으면 자동으로 스크립트를 가져와 챕터별로 요약해주는 도구. 시험 기간에 강의 영상 요약할 때 진짜 유용해요.
+
+<LessonNav slug="week-5" />

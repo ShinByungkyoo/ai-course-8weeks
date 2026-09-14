@@ -1,0 +1,407 @@
+import { LessonHeader } from "@/components/lesson-header";
+import { LessonNav } from "@/components/lesson-nav";
+
+<LessonHeader slug="week-8" />
+
+## 이번 주에 할 일
+
+드디어 마지막 주입니다. 이번 주는 두 가지를 합니다:
+
+1. **지금까지 만든 앱을 인터넷에 배포** — Streamlit Community Cloud로 무료로.
+2. **여러분만의 최종 프로젝트** — 8주간 배운 걸 전부 조합해서 나만의 앱 하나.
+
+배포가 끝나면 여러분 앱은 `https://my-app.streamlit.app` 같은 **공개 URL**로 접속할 수 있어요. 친구, 부모님, 교수님께 링크 하나로 자랑하세요.
+
+## Part 1. Streamlit Community Cloud 배포
+
+### 왜 Streamlit Cloud인가요?
+
+Streamlit 팀이 운영하는 무료 호스팅입니다.
+
+- ✅ 완전 무료
+- ✅ GitHub 저장소만 있으면 자동 배포
+- ✅ 코드 수정하면 자동 재배포
+- ✅ HTTPS 무료 제공
+
+Vercel, Heroku, Railway 등 다른 옵션도 있지만, **파이썬 + Streamlit이라면 Streamlit Cloud가 압도적으로 편합니다.**
+
+### 준비물 체크리스트
+
+- ☑️ GitHub 계정 (없으면 <a href="https://github.com/signup" target="_blank">github.com/signup</a>에서 만들기, 무료)
+- ☑️ 배포할 Streamlit 앱 (지난 주차들 앱 중 하나)
+
+## Step 1. Git 기본 이해
+
+**Git**은 코드 버전 관리 도구입니다. **GitHub**은 그 Git 저장소를 인터넷에 올려놓는 서비스예요.
+
+이번 주에 배울 Git 명령어는 딱 5개:
+
+| 명령어 | 뜻 |
+|---|---|
+| `git init` | 이 폴더를 Git 관리 대상으로 만들기 |
+| `git add .` | 모든 변경사항을 준비 |
+| `git commit -m "메시지"` | 준비된 것을 "저장 포인트"로 기록 |
+| `git remote add origin URL` | GitHub 저장소와 연결 |
+| `git push` | 내 로컬 코드를 GitHub으로 업로드 |
+
+이번 주에 이걸 실습합니다.
+
+## Step 2. Git 설치 확인
+
+이미 설치되어 있는 경우가 많지만 확인부터:
+
+```bash
+git --version
+```
+
+버전이 뜨면 OK. 없다면:
+- **Windows**: <a href="https://git-scm.com/download/win" target="_blank">git-scm.com</a>에서 설치. 옵션은 다 기본값 OK.
+- **Mac**: 터미널에 위 명령어 치면 자동으로 설치를 안내함.
+
+### 첫 사용시 이름/이메일 등록
+
+```bash
+git config --global user.name "여러분 이름"
+git config --global user.email "여러분@이메일.com"
+```
+
+## Step 3. 배포용 프로젝트 준비
+
+배포하기 좋게 프로젝트를 정리합시다. 배포할 앱은 여러분이 원하는 걸로 골라도 되지만, 여기서는 **Week 2 챗봇**을 예로 들게요.
+
+### 3-1. 프로젝트 폴더 구조
+
+`ai-course` 안에 배포용 폴더를 하나 만들거나, 별도 폴더로 뽑아냅시다. 배포용은 이런 구조:
+
+```
+my-chatbot/
+├── app.py               ← Streamlit 앱 (원래 chatbot.py를 이름 변경)
+├── requirements.txt     ← 필요한 라이브러리 목록
+├── .gitignore           ← Git이 무시할 파일 목록
+└── README.md            ← 앱 설명
+```
+
+### 3-2. requirements.txt 만들기
+
+Streamlit Cloud는 이 파일을 보고 어떤 라이브러리를 설치할지 결정합니다.
+
+`requirements.txt` 파일 만들고:
+
+```
+streamlit
+google-genai
+python-dotenv
+```
+
+앱에서 쓰는 라이브러리를 한 줄에 하나씩. 버전을 명시하고 싶으면 `streamlit==1.51.0`처럼 씁니다.
+
+### 3-3. app.py — Streamlit Cloud용으로 조금 수정
+
+로컬에서는 `.env`로 API 키를 관리했지만, 배포 환경에선 Streamlit의 **Secrets** 기능을 씁니다. 이렇게 바꾸세요:
+
+```python filename="app.py"
+import os
+import streamlit as st
+from google import genai
+from google.genai import types
+
+# ⭐ 배포 환경에서는 st.secrets, 로컬에서는 .env
+try:
+    api_key = st.secrets["GEMINI_API_KEY"]
+except (FileNotFoundError, KeyError):
+    from dotenv import load_dotenv
+    load_dotenv()
+    api_key = os.environ["GEMINI_API_KEY"]
+
+client = genai.Client(api_key=api_key)
+
+# ... 나머지는 원본 코드 그대로
+```
+
+이렇게 하면 **로컬에서도 배포에서도** 잘 돌아갑니다.
+
+### 3-4. .gitignore
+
+이미 있지만 확실히:
+
+```gitignore
+.env
+.venv/
+__pycache__/
+*.pyc
+.streamlit/secrets.toml
+```
+
+**`.env`와 `.streamlit/secrets.toml`은 절대로 GitHub에 올라가면 안 됩니다.** API 키가 유출돼요.
+
+### 3-5. README.md
+
+프로젝트 소개 파일. 이런 식:
+
+```markdown filename="README.md"
+# 나의 AI 챗봇 💬
+
+Gemini API로 만든 대화형 챗봇 웹앱입니다.
+
+## 기능
+- 여러 페르소나 선택
+- 대화 히스토리 유지
+- 스트리밍 응답
+
+## 실행 방법
+1. `pip install -r requirements.txt`
+2. `.env` 파일에 `GEMINI_API_KEY=...` 설정
+3. `streamlit run app.py`
+
+## 배포
+- Streamlit Community Cloud
+- URL: https://my-chatbot.streamlit.app
+```
+
+## Step 4. GitHub 저장소 만들기
+
+### 4-1. GitHub에서 새 저장소 생성
+
+1. <a href="https://github.com/new" target="_blank">github.com/new</a> 접속.
+2. **Repository name**: `my-ai-chatbot` (원하는 이름).
+3. **Public** 선택 (Streamlit Cloud 무료 티어는 public 저장소만 지원).
+4. **⚠️ 아래 체크박스는 다 비워두세요**: "Add a README file", ".gitignore", "license"는 모두 비활성화. 우리가 직접 만들 거예요.
+5. **Create repository** 클릭.
+
+저장소가 생성되면, 화면에 명령어 안내가 뜹니다. **"push an existing repository from the command line"** 섹션의 명령어를 따라합니다.
+
+### 4-2. 로컬 폴더를 GitHub과 연결
+
+VS Code 터미널을 여러분 프로젝트 폴더에서 열고:
+
+```bash
+git init
+git add .
+git commit -m "초기 커밋: AI 챗봇 앱"
+git branch -M main
+git remote add origin https://github.com/여러분_아이디/my-ai-chatbot.git
+git push -u origin main
+```
+
+마지막 명령어에서 브라우저가 열리며 GitHub 로그인을 요청할 수 있어요. 로그인하면 자동으로 처리됩니다.
+
+### 4-3. GitHub에서 확인
+
+브라우저에서 저장소 페이지를 새로고침하면 `app.py`, `requirements.txt` 등이 올라와 있어야 합니다.
+
+> 🆘 **`.env`가 올라갔다면?** 큰 문제입니다. 다음 두 가지를 즉시 하세요:
+> 1. <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>에서 그 API 키를 **삭제하고 새로 만들기**.
+> 2. `.gitignore`에 `.env`를 추가하고 다시 커밋·푸시.
+> 커밋 히스토리에서 완전히 지우는 건 복잡하니, 그냥 새 저장소를 만드는 게 빠를 수 있어요.
+
+## Step 5. Streamlit Community Cloud 배포
+
+이제 진짜 배포!
+
+### 5-1. Streamlit Cloud 가입
+
+1. <a href="https://share.streamlit.io/" target="_blank">share.streamlit.io</a> 접속.
+2. **"Sign up"** → GitHub 계정으로 로그인.
+3. GitHub에서 Streamlit에 접근 권한 부여.
+
+### 5-2. 새 앱 배포
+
+1. **"Create app"** 또는 **"New app"** 버튼 클릭.
+2. **"Deploy a public app from GitHub"** 선택.
+3. 폼 입력:
+   - **Repository**: `여러분_아이디/my-ai-chatbot`
+   - **Branch**: `main`
+   - **Main file path**: `app.py`
+   - **App URL** (선택): 원하는 서브도메인. 예: `my-ai-chatbot`
+4. **"Deploy!"** 클릭.
+
+30초~2분 정도 빌드 로그가 스크롤됩니다. `You can now view your Streamlit app` 메시지가 뜨면 성공.
+
+### 5-3. Secrets 설정 (API 키 등록)
+
+이대로 열면 API 키가 없어서 에러가 뜹니다. Secrets를 등록해야 해요.
+
+1. 앱 화면 오른쪽 위 **"⋮"** → **"Settings"** → **"Secrets"**.
+2. 아래 내용을 입력하고 저장:
+
+```toml
+GEMINI_API_KEY = "AIzaSy...여러분의_실제_키..."
+```
+
+3. 자동으로 앱이 재시작됩니다. 몇 초 후 다시 접속.
+
+### 5-4. 완성!
+
+브라우저 주소창의 URL, 예를 들어 `https://my-ai-chatbot.streamlit.app`이 여러분의 앱 주소입니다. 이 URL을 친구·부모님·교수님께 자유롭게 공유하세요. 🎉
+
+## Step 6. 코드 수정하면 자동 재배포
+
+앱을 수정하고 싶으면:
+
+```bash
+# 로컬에서 수정
+# 저장
+
+git add .
+git commit -m "챗봇 페르소나 추가"
+git push
+```
+
+`git push` 하면 Streamlit Cloud가 감지해서 자동으로 새 버전을 배포합니다. 몇 초~1분 후 자동으로 반영돼요.
+
+---
+
+## Part 2. 최종 프로젝트 💡
+
+이제 여러분만의 앱을 만들 차례입니다.
+
+### 프로젝트 예시 (영감을 위해)
+
+- 📚 **학습 도우미**: 교과서 PDF 업로드 + 시험 예상 문제 자동 생성 (Week 3 + 4)
+- 🍜 **레시피 어시스턴트**: 냉장고 사진 → 만들 수 있는 요리 추천 (Week 5 + 7)
+- ✈️ **여행 계획 도우미**: 목적지·기간 → 웹 검색으로 최신 정보 + 일정 짜기 (Week 7)
+- 📰 **뉴스 브리핑**: 관심 키워드 → 유튜브 뉴스 요약 + 웹 최신 기사 (Week 6 + 7)
+- 📝 **면접 준비 코치**: 자소서 PDF → 예상 면접 질문 + 페르소나 면접관 챗봇 (Week 3 + 4)
+- 🎨 **글쓰기 파트너**: 초안 업로드 → 문체 개선 제안 + 문법 체크 (Week 3)
+- 💰 **가계부 어시스턴트**: 영수증 사진들 → 자동 카테고리화 + 지출 분석 (Week 5)
+
+### 프로젝트 진행 순서
+
+1. **아이디어 확정**: 여러분에게 진짜 필요한 문제 하나를 선택.
+2. **기능 목록 작성**: 어떤 화면이 필요한지 스케치.
+3. **어떤 주차 스킬을 조합할지** 결정.
+4. **작게 시작**: 가장 핵심 기능 하나만 먼저.
+5. **점점 추가**.
+6. **배포**.
+
+### 프로젝트 템플릿
+
+새 폴더 `my-final-project` 만들고 다음 파일들로 시작:
+
+```
+my-final-project/
+├── app.py
+├── requirements.txt
+├── .env.example
+├── .gitignore
+└── README.md
+```
+
+`app.py` 기본 뼈대:
+
+```python filename="app.py"
+import os
+import streamlit as st
+from google import genai
+from google.genai import types
+
+# --- 설정 ---
+try:
+    api_key = st.secrets["GEMINI_API_KEY"]
+except (FileNotFoundError, KeyError):
+    from dotenv import load_dotenv
+    load_dotenv()
+    api_key = os.environ["GEMINI_API_KEY"]
+
+client = genai.Client(api_key=api_key)
+
+# --- 페이지 설정 ---
+st.set_page_config(
+    page_title="내 앱 이름",
+    page_icon="🎯",
+    layout="wide",
+)
+
+st.title("🎯 내 앱 이름")
+st.caption("한 줄 소개")
+
+# --- 사이드바 ---
+with st.sidebar:
+    st.header("설정")
+    # ...
+
+# --- 메인 컨텐츠 ---
+# 여기에 여러분 앱 로직 작성
+```
+
+## Step 7. 프로젝트 발표 준비 (선택)
+
+수업에서 발표한다면 이런 구성을 권장합니다 (3~5분):
+
+1. **문제 정의** (30초): 어떤 불편함을 해결하려 했나?
+2. **데모** (2분): 실제 배포된 URL로 시연.
+3. **기술 하이라이트** (1분): 어떤 주차 기술을 어떻게 조합했나?
+4. **어려웠던 점** (30초): 배운 것.
+5. **다음 단계** (30초): 더 발전시킨다면?
+
+## 자주 발생하는 배포 오류
+
+### ❌ `ModuleNotFoundError` (Streamlit Cloud에서)
+
+**원인**: `requirements.txt`에 라이브러리 누락.
+
+**해결**: 앱에서 `import`하는 모든 라이브러리를 `requirements.txt`에 추가하고 다시 push.
+
+### ❌ `KeyError: 'GEMINI_API_KEY'` (Streamlit Cloud에서)
+
+**원인**: Secrets에 API 키를 등록 안 함.
+
+**해결**: Step 5-3 다시 확인.
+
+### ❌ 배포 후 앱이 아예 안 켜짐
+
+**원인**: 파일 경로 문제 또는 requirements 충돌.
+
+**해결**: 
+1. Streamlit Cloud 앱 페이지의 **"Manage app"** → **로그** 확인.
+2. 로컬에서 새 venv 만들어 `pip install -r requirements.txt` → 실행 테스트.
+
+### ❌ 앱이 너무 느림
+
+**원인**: 
+- 매번 embedding을 다시 만듦
+- 이미지·PDF를 매번 로드
+
+**해결**: `@st.cache_data` / `@st.cache_resource` 데코레이터로 캐싱.
+
+```python
+@st.cache_data
+def load_pdf(file):
+    ...  # 결과가 캐시됨. 같은 파일이면 재실행 안 함.
+```
+
+## 최종 과제
+
+다음을 완성해서 제출하세요:
+
+1. **최종 프로젝트 앱**의 GitHub 저장소 URL.
+2. **배포된 앱**의 Streamlit Cloud URL.
+3. **README.md**에 다음을 포함:
+   - 앱 소개 (2~3문장)
+   - 스크린샷 최소 2장
+   - 어떤 주차 기술을 조합했는지
+   - 사용 방법
+4. **회고문** (500자 내외):
+   - 8주 동안 뭐가 가장 어려웠나?
+   - 뭐가 가장 재미있었나?
+   - 다음에 더 배우고 싶은 것?
+
+## 축하합니다 🎉🎉🎉
+
+여러분은 방금 8주 만에 **AI 개발자가 됐습니다.**
+
+- 문과생이었던 여러분이,
+- 코딩 한 줄 몰랐던 여러분이,
+- 이제 AI 앱을 설계하고, 만들고, 배포할 수 있습니다.
+
+이 강의는 여기서 끝나지만, 여러분의 AI 여정은 이제 시작입니다. 만든 앱을 계속 발전시키고, 새로운 앱을 상상하고, 세상에 진짜 필요한 도구를 만들어주세요.
+
+**다음 단계 추천**:
+- 📚 <a href="https://ai.google.dev/gemini-api/docs" target="_blank">Gemini API 공식 문서</a> — 이제 여러분은 이 문서를 읽을 수 있어요.
+- 🔥 <a href="https://github.com/Sumanth077/Hands-On-AI-Engineering" target="_blank">Hands-On AI Engineering</a> — 60개 이상의 프로젝트 저장소. 여기서 다음 배울 걸 골라보세요.
+- 🧠 <a href="https://python.langchain.com/" target="_blank">LangChain</a> — 더 복잡한 에이전트를 만들 때.
+- 🐍 파이썬 기초 심화 — 문법을 더 깊이 배우면 못 만들 게 없어요.
+
+건투를 빕니다. 여러분이 만든 앱, 언젠가 어디선가 보게 되길 진심으로 응원합니다. 👋
+
+<LessonNav slug="week-8" />

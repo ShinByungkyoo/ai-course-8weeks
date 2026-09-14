@@ -1,0 +1,367 @@
+import { LessonHeader } from "@/components/lesson-header";
+import { LessonNav } from "@/components/lesson-nav";
+
+<LessonHeader slug="week-6" />
+
+## 이번 주에 만들 것
+
+**유튜브 URL만 넣으면 영상을 자동으로 요약해주는 웹앱**입니다.
+
+- 1시간짜리 강의 영상 → 3분 만에 핵심 파악
+- 챕터별 요약
+- "이 부분 자세히 설명해줘" 형식의 질답
+- 3문장 초간단 요약 vs 상세 요약 선택
+
+이제 여러분은 유튜브 강의를 몰아서 볼 필요가 없어요. 😎
+
+## 어떻게 동작하나요?
+
+핵심 아이디어는 매우 단순:
+
+1. 유튜브 URL에서 **자막(transcript)**을 가져옴
+2. 그 자막을 Gemini에게 "이거 요약해줘" 프롬프트로 전달
+3. 결과 표시
+
+자막은 `youtube-transcript-api`라는 파이썬 라이브러리로 쉽게 가져올 수 있어요. 유튜브가 자동 생성한 자막이나 사람이 만든 자막을 API로 제공하거든요.
+
+## Step 1. 라이브러리 설치
+
+```bash
+pip install youtube-transcript-api
+```
+
+## Step 2. 자막 가져오기 테스트
+
+먼저 자막이 잘 가져와지는지 확인해봅시다. 새 파일 **`transcript_test.py`**:
+
+```python filename="transcript_test.py"
+from youtube_transcript_api import YouTubeTranscriptApi
+
+# 아무 유튜브 영상의 비디오 ID
+# https://www.youtube.com/watch?v=dQw4w9WgXcQ 라면 dQw4w9WgXcQ가 ID
+VIDEO_ID = "dQw4w9WgXcQ"
+
+# 자막 가져오기 (한국어 우선, 없으면 영어)
+transcript = YouTubeTranscriptApi.get_transcript(VIDEO_ID, languages=["ko", "en"])
+
+# transcript는 [{"text": "...", "start": 시간, "duration": ...}, ...] 리스트
+print(f"자막 조각 수: {len(transcript)}")
+print(f"첫 3개:")
+for item in transcript[:3]:
+    print(f"  [{item['start']:.1f}s] {item['text']}")
+```
+
+실행:
+
+```bash
+python transcript_test.py
+```
+
+성공하면 자막 조각들이 시간대와 함께 출력됩니다.
+
+### URL에서 비디오 ID 뽑기
+
+사용자는 대개 전체 URL을 붙여넣을 거예요. URL에서 ID만 뽑는 유틸리티가 필요합니다:
+
+```python
+import re
+
+def extract_video_id(url: str) -> str | None:
+    """유튜브 URL의 다양한 형태에서 비디오 ID 추출."""
+    patterns = [
+        r"(?:v=|/)([0-9A-Za-z_-]{11})",  # 표준 URL, 짧은 URL, 임베드 URL 모두 커버
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
+```
+
+이 함수는 다음 URL 모두를 처리할 수 있어요:
+- `https://www.youtube.com/watch?v=dQw4w9WgXcQ`
+- `https://youtu.be/dQw4w9WgXcQ`
+- `https://www.youtube.com/embed/dQw4w9WgXcQ`
+- `dQw4w9WgXcQ` (그냥 ID만 넣어도 OK)
+
+## Step 3. 요약봇 완성하기
+
+새 파일 **`youtube_summary.py`**:
+
+```python filename="youtube_summary.py"
+import os
+import re
+import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+st.title("📺 유튜브 영상 요약봇")
+st.caption("URL만 넣으면 AI가 영상 내용을 챕터별로 요약합니다.")
+
+# --- 유틸 ---
+
+def extract_video_id(url: str) -> str | None:
+    match = re.search(r"(?:v=|youtu\.be/|/embed/)([0-9A-Za-z_-]{11})", url)
+    return match.group(1) if match else (url if re.fullmatch(r"[0-9A-Za-z_-]{11}", url) else None)
+
+def get_transcript(video_id: str) -> tuple[str, list[dict]]:
+    """자막 전체 텍스트와 원본 리스트 리턴."""
+    transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=["ko", "en"])
+    full_text = "\n".join(f"[{item['start']:.0f}s] {item['text']}" for item in transcript)
+    return full_text, transcript
+
+# --- UI ---
+
+url = st.text_input(
+    "유튜브 URL 또는 비디오 ID",
+    placeholder="https://www.youtube.com/watch?v=..."
+)
+
+col1, col2 = st.columns(2)
+with col1:
+    summary_type = st.radio(
+        "요약 방식",
+        ["📝 3문장 요약", "📚 챕터별 상세 요약", "🎯 핵심 인사이트"],
+    )
+with col2:
+    include_timestamps = st.checkbox("타임스탬프 포함", value=True)
+
+if st.button("🚀 요약 시작", type="primary", disabled=not url):
+    video_id = extract_video_id(url)
+
+    if not video_id:
+        st.error("❌ 올바른 유튜브 URL이 아닙니다.")
+        st.stop()
+
+    # 비디오 미리보기
+    st.video(f"https://www.youtube.com/watch?v={video_id}")
+
+    with st.spinner("자막 가져오는 중..."):
+        try:
+            full_text, transcript = get_transcript(video_id)
+        except TranscriptsDisabled:
+            st.error("❌ 이 영상은 자막이 비활성화되어 있습니다.")
+            st.stop()
+        except NoTranscriptFound:
+            st.error("❌ 한국어/영어 자막을 찾을 수 없습니다.")
+            st.stop()
+        except Exception as e:
+            st.error(f"❌ 자막 로드 실패: {e}")
+            st.stop()
+
+    st.success(f"✅ 자막 확보 완료 ({len(transcript)}개 조각, 약 {len(full_text):,}자)")
+
+    # 요약 방식별 프롬프트
+    prompts = {
+        "📝 3문장 요약": """
+이 유튜브 영상의 자막을 읽고 딱 3문장으로 핵심을 요약하세요.
+1문장: 이 영상이 다루는 주제
+2문장: 가장 중요한 인사이트/결론
+3문장: 시청자가 얻어갈 액션 아이템
+""",
+        "📚 챕터별 상세 요약": f"""
+이 유튜브 영상의 자막을 분석해서 챕터별로 정리하세요.
+
+형식:
+## 🎬 챕터 1: [주제] {"(00:00 ~ 00:00)" if include_timestamps else ""}
+- 핵심 포인트 1
+- 핵심 포인트 2
+
+각 챕터는 3~5개 정도로 나누고, 각 챕터마다 3~5개 핵심 포인트를 뽑아주세요.
+{"타임스탬프는 자막의 [n초] 표시를 참고하여 mm:ss 형식으로 표시합니다." if include_timestamps else "타임스탬프는 표시하지 않습니다."}
+
+마지막에 ## 💡 총평 섹션으로 2~3문장 마무리.
+""",
+        "🎯 핵심 인사이트": """
+이 유튜브 영상에서 가장 가치 있는 인사이트 5개를 뽑아 정리하세요.
+
+각 인사이트마다:
+- 💡 인사이트: (한 문장)
+- 📝 상세 설명: (2~3문장)
+- 🎯 왜 중요한가: (1문장)
+
+일반적이거나 뻔한 얘기 말고, 진짜 유용하고 구체적인 것만 뽑아주세요.
+""",
+    }
+
+    with st.spinner("AI가 영상을 이해하고 요약 중..."):
+        stream = client.models.generate_content_stream(
+            model="gemini-2.5-flash",
+            contents=f"[영상 자막]\n{full_text}\n\n[요청]\n{prompts[summary_type]}",
+        )
+        st.write_stream(chunk.text for chunk in stream)
+
+    # 전체 자막 접힌 영역
+    with st.expander("📜 전체 자막 보기"):
+        st.text(full_text[:5000] + ("..." if len(full_text) > 5000 else ""))
+```
+
+실행:
+
+```bash
+streamlit run youtube_summary.py
+```
+
+## Step 4. 테스트해보기
+
+여러분이 자주 보는 유튜브 채널이나 강의 영상 URL을 넣어보세요. 다양한 것들을 시도해보세요:
+
+- 📚 인강 요약 (테드 강연, 세바시 등)
+- 🍳 요리 영상 → 레시피만 뽑기
+- 📰 뉴스 영상 → 핵심만
+- 🎮 게임 리뷰 → 장단점 정리
+
+세 가지 요약 방식을 다 눌러보면서 어떤 게 가장 유용한지 감을 잡아보세요.
+
+## Step 5. QA 기능 추가 — "이 부분 더 설명해줘"
+
+지금은 한 번 요약하면 끝이에요. 자막을 저장해두고 계속 질문할 수 있게 만듭시다. **`youtube_qa.py`**:
+
+```python filename="youtube_qa.py"
+import os
+import re
+import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+from youtube_transcript_api import YouTubeTranscriptApi
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+st.title("📺 유튜브 영상과 대화하기")
+
+def extract_video_id(url: str) -> str | None:
+    match = re.search(r"(?:v=|youtu\.be/|/embed/)([0-9A-Za-z_-]{11})", url)
+    return match.group(1) if match else (url if re.fullmatch(r"[0-9A-Za-z_-]{11}", url) else None)
+
+# --- 사이드바: 영상 로드 ---
+with st.sidebar:
+    st.header("영상 설정")
+    url = st.text_input("유튜브 URL")
+    if st.button("영상 불러오기", disabled=not url):
+        video_id = extract_video_id(url)
+        if video_id:
+            try:
+                transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=["ko", "en"])
+                full_text = "\n".join(f"[{item['start']:.0f}s] {item['text']}" for item in transcript)
+                st.session_state.video_id = video_id
+                st.session_state.transcript_text = full_text
+                st.session_state.messages = []
+                st.success("영상 로드 완료!")
+            except Exception as e:
+                st.error(f"실패: {e}")
+
+    if st.button("🗑️ 대화 초기화"):
+        st.session_state.messages = []
+        st.rerun()
+
+# --- 메인: 영상 & 채팅 ---
+if "transcript_text" in st.session_state:
+    st.video(f"https://www.youtube.com/watch?v={st.session_state.video_id}")
+
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+
+    user_q = st.chat_input("이 영상에 대해 무엇이든 물어보세요")
+    if user_q:
+        st.session_state.messages.append({"role": "user", "content": user_q})
+        with st.chat_message("user"):
+            st.write(user_q)
+
+        with st.chat_message("assistant"):
+            system = """
+당신은 유튜브 영상의 자막을 근거로 사용자의 질문에 답하는 도우미입니다.
+
+규칙:
+1. 반드시 자막 내용만을 근거로 답한다.
+2. 자막에 없는 내용은 "이 영상에서 다루지 않았어요"라고 답한다.
+3. 관련 시점(타임스탬프)이 있으면 함께 표시한다.
+4. 답변은 3~5문장으로 간결하게.
+"""
+            prompt = f"[영상 자막]\n{st.session_state.transcript_text}\n\n[사용자 질문]\n{user_q}"
+            stream = client.models.generate_content_stream(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(system_instruction=system),
+            )
+            answer = st.write_stream(chunk.text for chunk in stream)
+
+        st.session_state.messages.append({"role": "assistant", "content": answer})
+else:
+    st.info("👈 왼쪽에서 유튜브 URL을 넣고 [영상 불러오기]를 누르세요.")
+```
+
+이제 영상을 불러온 뒤 "5분쯤 나오는 그 개념 다시 설명해줘" 같은 질문을 할 수 있어요.
+
+## Step 6. 긴 영상 처리하기 (참고용)
+
+**주의**: Gemini는 한 번에 처리할 수 있는 텍스트 양에 한계가 있어요 (Gemini 2.5 Flash는 100만 토큰, 대략 750,000자 정도). 대부분의 유튜브 영상은 이 범위 안이지만, 3시간 이상의 매우 긴 영상은 자를 필요가 있을 수 있어요.
+
+만약 "resource exhausted" 오류가 뜬다면:
+
+```python
+# 자막이 너무 길면 자르기
+MAX_CHARS = 500_000
+if len(full_text) > MAX_CHARS:
+    full_text = full_text[:MAX_CHARS] + "\n\n[이하 생략 - 자막이 너무 길어 앞부분만 사용]"
+```
+
+## 자주 발생하는 오류
+
+### ❌ `TranscriptsDisabled`
+
+**원인**: 영상 소유자가 자막을 껐거나, Shorts는 자막이 없는 경우가 많음.
+
+**해결**: 다른 영상 선택.
+
+### ❌ `NoTranscriptFound`
+
+**원인**: 한국어/영어 자막이 없음.
+
+**해결**: 
+1. `languages=["ko", "en", "ja", "zh"]` 로 언어 확장.
+2. 여전히 없다면 다른 영상 선택.
+
+### ❌ `youtube_transcript_api._errors.CouldNotRetrieveTranscript`
+
+**원인**: 네트워크 문제이거나, 유튜브가 일시적으로 IP를 차단.
+
+**해결**: 잠시 후 재시도. Wi-Fi를 다시 연결해도 좋음.
+
+### ❌ 자막은 잘 오는데 요약이 이상함
+
+**원인**: 자동 생성 자막의 인식이 부정확한 경우.
+
+**해결**: 
+1. 사람이 만든 자막이 있는 영상 선택 (자막 아이콘 옆에 "CC" 표시)
+2. 다른 언어로 시도
+
+## 이번 주 과제
+
+1. 여러분이 최근에 본 유튜브 영상 5개를 요약해서 어떤 요약 방식이 가장 유용한지 정리하세요.
+2. 사이드바에 **"영상 길이"** 표시를 추가하세요. (힌트: 자막의 마지막 `start` 값)
+3. 요약 결과를 파일로 다운로드하는 버튼을 추가하세요.
+4. **선택 도전**: 여러 유튜브 URL을 넣으면 각각을 짧게 요약해 **비교 표**로 보여주는 앱을 만드세요. (예: 3개 리뷰 영상 비교)
+
+## 다음 주 예고
+
+Week 7이 이 강의의 진짜 클라이맥스입니다. **AI가 스스로 도구를 선택해 쓰는 에이전트**를 만들어요.
+
+- "지금 도쿄 날씨 어때?" → 검색 도구 사용
+- "128 곱하기 47은?" → 계산기 도구 사용
+- "내 다이어리에 오늘 일정 추가해줘" → 파일 쓰기 도구 사용
+
+이걸 **Function Calling(함수 호출)**이라고 부르는데, 지난 1년간 AI 업계에서 가장 뜨거운 주제였어요. 다음 주에 봐요!
+
+<LessonNav slug="week-6" />

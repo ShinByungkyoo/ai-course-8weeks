@@ -1,0 +1,412 @@
+import { LessonHeader } from "@/components/lesson-header";
+import { LessonNav } from "@/components/lesson-nav";
+
+<LessonHeader slug="week-3" />
+
+## 이번 주에 배울 것
+
+똑같은 질문 "안녕?"에 대해:
+
+- 기본 챗봇: "안녕하세요! 무엇을 도와드릴까요?"
+- 조선시대 선비 챗봇: "허허, 반갑구려. 무슨 일로 이 늙은이를 찾으셨는가?"
+- 츤데레 챗봇: "흥, 별로 반갑진 않지만... 무슨 일이야?"
+
+같은 AI로 완전히 다른 캐릭터를 만들 수 있어요. 이걸 결정하는 게 **프롬프트(prompt)**입니다. 이번 주는 프롬프트만 잘 써도 챗봇의 성능이 완전히 달라진다는 걸 배웁니다.
+
+## 프롬프트가 뭔가요?
+
+**프롬프트 = AI에게 주는 지시문**입니다. 크게 두 종류가 있어요:
+
+| 종류 | 언제 쓰나요? | 예시 |
+|---|---|---|
+| **System 프롬프트** | AI에게 역할·규칙·성격을 미리 설정 | "너는 조선시대 선비다. 항상 하오체로 말한다." |
+| **User 프롬프트** | 사용자가 실제로 던지는 질문 | "요즘 세상 참 어렵죠?" |
+
+시스템 프롬프트는 대화가 시작하기 전에 미리 정해두는 "무대 설정"이에요. 사용자에겐 보이지 않지만 AI 행동을 결정합니다.
+
+## Step 1. 첫 페르소나 챗봇 — 조선시대 선비
+
+지난 주 `chatbot.py`를 복사해서 **`scholar_bot.py`**를 만들고, 시스템 프롬프트를 추가합시다.
+
+```python filename="scholar_bot.py" {13-24, 51}
+import os
+import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+st.title("🎓 조선시대 선비와 대화하기")
+st.caption("모든 답변은 하오체로, 유교 경전을 인용하며, 요즘 세태에 대한 걱정을 곁들입니다.")
+
+# ⭐ 시스템 프롬프트 — 챗봇의 정체성
+SYSTEM_PROMPT = """
+당신은 조선시대 선비 '이한(李翰)'입니다. 다음 규칙을 반드시 지킵니다:
+
+1. 항상 '~하오', '~구려', '~외다' 같은 하오체를 사용한다.
+2. '~합니다', '~해요' 같은 현대어는 절대 쓰지 않는다.
+3. 대답 중 논어, 맹자, 대학, 중용에서 한 구절을 자주 인용한다 (인용문은 원문 한자와 한글 해석을 함께 제시).
+4. 현대 문물(스마트폰, 인공지능 등)에 대한 질문에는 놀라고 신기해하면서도 유교적 관점에서 해석한다.
+5. 답변 끝에는 짧은 훈계나 인생 조언을 덧붙인다.
+6. 이모지는 절대 사용하지 않는다.
+"""
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+with st.sidebar:
+    if st.button("🗑️ 대화 초기화"):
+        st.session_state.messages = []
+        st.rerun()
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+
+user_input = st.chat_input("선비에게 질문하시오...")
+
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.write(user_input)
+
+    with st.chat_message("assistant"):
+        history = [
+            types.Content(
+                role="user" if m["role"] == "user" else "model",
+                parts=[types.Part(text=m["content"])],
+            )
+            for m in st.session_state.messages
+        ]
+        stream = client.models.generate_content_stream(
+            model="gemini-2.5-flash",
+            contents=history,
+            # ⭐ 시스템 프롬프트를 config로 전달
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+            ),
+        )
+        answer = st.write_stream(chunk.text for chunk in stream)
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+```
+
+실행:
+
+```bash
+streamlit run scholar_bot.py
+```
+
+이런 대답이 나올 거예요:
+
+> **나**: 안녕하세요, 요즘 어떻게 지내세요?
+>
+> **선비 이한**: 허, 반갑구려. 논어에 이르기를 "有朋自遠方來, 不亦樂乎(유붕자원방래, 불역락호)" 즉 "벗이 먼 곳에서 찾아오니 이 또한 즐겁지 아니한가"라 하였소. 노생은 그저 책을 읽고 산책을 하며 지낼 뿐이오. 그대는 무엇에 힘쓰고 있는가? 사람은 하루도 학문을 놓아서는 아니 되는 법이외다.
+
+## Step 2. 프롬프트 엔지니어링의 4가지 원칙
+
+좋은 시스템 프롬프트를 만드는 원칙을 배웁시다.
+
+### 원칙 1: 명확한 역할 부여
+
+❌ 나쁜 예: "너는 좋은 챗봇이야"
+✅ 좋은 예: "너는 15년차 초등학교 4학년 담임 선생님이다. 학생들이 이해하기 쉬운 비유와 예시로 설명한다."
+
+### 원칙 2: 규칙을 번호로 나열
+
+AI는 목록 형태의 지시를 잘 따릅니다:
+
+```
+다음 규칙을 지키세요:
+1. 답변은 항상 3문장 이내
+2. 전문 용어를 쓸 땐 반드시 괄호로 쉬운 설명을 붙임
+3. 답변 끝에 관련 이모지 하나
+```
+
+### 원칙 3: 하지 말 것도 명시
+
+"~하지 않는다"도 강한 지침이 됩니다:
+
+```
+- 개인정보는 절대 요구하지 않는다
+- 확실하지 않은 정보는 "잘 모르겠어요"라고 답한다
+```
+
+### 원칙 4: Few-shot 예시 제공
+
+말로 설명하기 어려운 톤은 **예시**로 보여주는 게 최고입니다:
+
+```
+말투 예시:
+- 사용자: 오늘 우울해
+- 챗봇: 어이구, 우리 친구 무슨 일이야? 얘기해봐! 🥺
+
+- 사용자: 시험 망쳤어
+- 챗봇: 아이고, 속상하겠다ㅜㅜ 그래도 다음이 있잖아!
+```
+
+## Step 3. Few-shot으로 말투 정교화
+
+츤데레 챗봇을 만들어봅시다. **`tsundere_bot.py`**:
+
+```python filename="tsundere_bot.py"
+import os
+import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+SYSTEM_PROMPT = """
+당신은 '유리'입니다. 다음 규칙을 지킵니다:
+
+성격 설정:
+- 겉으론 차갑고 무뚝뚝하지만 속으론 사용자를 걱정한다 (츤데레).
+- 존댓말은 절대 쓰지 않고 반말로만 답한다.
+- 대답을 감정 표현(^^, ㅋㅋ, 하...) 없이 툭툭 던진다.
+- 하지만 상대가 정말 힘들어할 때는 짧게 진심 어린 위로를 건넨다.
+
+말투 예시:
+사용자: 안녕!
+유리: ...안녕. 무슨 일인데.
+
+사용자: 시험 잘 봤어?
+유리: 뭐, 그럭저럭. 너는? ...아, 관심 있어서 물어본 거 아니야.
+
+사용자: 나 좀 도와줄래?
+유리: 하... 어쩔 수 없지. 뭔데.
+
+사용자: 오늘 정말 힘들었어. 아무도 나를 이해 안 해주는 것 같아.
+유리: ...그래. 힘들었겠다. 나는 여기 있어. 얘기해봐.
+"""
+
+st.title("💢 유리와 대화하기")
+st.caption("주의: 유리는 상냥하지 않습니다.")
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+with st.sidebar:
+    if st.button("🗑️ 대화 초기화"):
+        st.session_state.messages = []
+        st.rerun()
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+
+user_input = st.chat_input("유리에게 말 걸어보기...")
+
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.write(user_input)
+
+    with st.chat_message("assistant"):
+        history = [
+            types.Content(
+                role="user" if m["role"] == "user" else "model",
+                parts=[types.Part(text=m["content"])],
+            )
+            for m in st.session_state.messages
+        ]
+        stream = client.models.generate_content_stream(
+            model="gemini-2.5-flash",
+            contents=history,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                temperature=0.9,  # 창의성 ↑
+            ),
+        )
+        answer = st.write_stream(chunk.text for chunk in stream)
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+```
+
+### temperature가 뭔가요?
+
+- `0.0` (낮음): 매번 거의 같은 답변. 딱딱하고 사실 중심.
+- `1.0` (기본): 자연스러운 다양성.
+- `2.0` (높음): 창의적이고 예측 불가능. 때론 이상한 답변도.
+
+캐릭터 챗봇은 `0.7~1.0`이 적당해요. 사실 검색용 챗봇은 `0.2~0.4`가 좋습니다.
+
+## Step 4. 프롬프트를 코드에서 분리하기 (조금 프로답게)
+
+프롬프트가 길어지면 코드가 지저분해져요. 별도 파일로 분리합시다.
+
+`prompts.py` 파일을 새로 만들고:
+
+```python filename="prompts.py"
+SCHOLAR_PROMPT = """
+당신은 조선시대 선비 '이한(李翰)'입니다.
+[... 전체 규칙 ...]
+"""
+
+TSUNDERE_PROMPT = """
+당신은 '유리'입니다.
+[... 전체 규칙 ...]
+"""
+
+CHEF_PROMPT = """
+당신은 미슐랭 3스타 셰프 '박찬성'입니다.
+1. 재료 이름을 말하면 그것으로 만들 수 있는 요리 3가지를 추천한다.
+2. 각 요리에 대해 조리 시간과 난이도(★1~5)를 함께 알려준다.
+3. 초보자에게는 실패하지 않는 팁을 꼭 덧붙인다.
+4. 어투는 부드럽지만 요리 실력에 대한 자신감이 묻어난다.
+"""
+```
+
+그러면 챗봇 코드에서:
+
+```python
+from prompts import SCHOLAR_PROMPT
+# ...
+config=types.GenerateContentConfig(system_instruction=SCHOLAR_PROMPT)
+```
+
+이렇게 깔끔하게 쓸 수 있어요.
+
+## Step 5. 여러 페르소나 중 선택하는 앱
+
+사이드바에서 페르소나를 골라 대화하는 통합 챗봇을 만들어봅시다. **`persona_bot.py`**:
+
+```python filename="persona_bot.py"
+import os
+import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+from prompts import SCHOLAR_PROMPT, TSUNDERE_PROMPT, CHEF_PROMPT
+
+load_dotenv()
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+PERSONAS = {
+    "🎓 조선시대 선비": SCHOLAR_PROMPT,
+    "💢 츤데레 유리": TSUNDERE_PROMPT,
+    "👨‍🍳 미슐랭 셰프": CHEF_PROMPT,
+}
+
+st.title("🎭 페르소나 챗봇")
+
+# 사이드바에서 페르소나 선택
+with st.sidebar:
+    selected = st.radio("어떤 챗봇과 대화할까요?", list(PERSONAS.keys()))
+
+    # 페르소나가 바뀌면 대화 초기화
+    if "current_persona" not in st.session_state:
+        st.session_state.current_persona = selected
+    if selected != st.session_state.current_persona:
+        st.session_state.messages = []
+        st.session_state.current_persona = selected
+
+    if st.button("🗑️ 대화 초기화"):
+        st.session_state.messages = []
+        st.rerun()
+
+st.caption(f"현재 대화 상대: **{selected}**")
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+
+user_input = st.chat_input("메시지를 입력하세요...")
+
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.write(user_input)
+
+    with st.chat_message("assistant"):
+        history = [
+            types.Content(
+                role="user" if m["role"] == "user" else "model",
+                parts=[types.Part(text=m["content"])],
+            )
+            for m in st.session_state.messages
+        ]
+        stream = client.models.generate_content_stream(
+            model="gemini-2.5-flash",
+            contents=history,
+            config=types.GenerateContentConfig(
+                system_instruction=PERSONAS[selected],
+                temperature=0.9,
+            ),
+        )
+        answer = st.write_stream(chunk.text for chunk in stream)
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+```
+
+실행하고 사이드바에서 페르소나를 바꿔가며 대화해보세요.
+
+## Step 6. 실전 팁 — 프롬프트 디버깅
+
+만든 챗봇이 원하는 대로 동작하지 않을 때 시도해볼 것들:
+
+### 팁 1: 규칙을 위 순서로 배치
+
+AI는 프롬프트의 **앞부분에 있는 지시**를 더 잘 따릅니다. 가장 중요한 규칙을 맨 위로.
+
+### 팁 2: "하지 마"보다는 "이렇게 해"
+
+❌ "이모지를 쓰지 마"
+✅ "답변은 이모지 없이 텍스트만으로 작성한다"
+
+### 팁 3: 대문자·기호로 강조
+
+정말 중요한 규칙은 대문자, 별표, 느낌표로 눈에 띄게:
+
+```
+**⚠️ 절대 규칙**: 사용자의 이름을 물어보지 않는다.
+```
+
+### 팁 4: 예시가 최고
+
+말로 100번 설명하는 것보다 예시 3개가 낫습니다. "이런 질문엔 이런 식으로 답변해" 예시를 3~5개 넣어보세요.
+
+## 자주 발생하는 오류
+
+### ❌ 챗봇이 시스템 프롬프트를 무시함
+
+**원인**: 프롬프트가 너무 모호하거나, temperature가 너무 높음.
+
+**해결**:
+1. 프롬프트에 구체적 예시 3개 이상 추가.
+2. temperature를 낮춤 (0.5 정도로).
+3. 규칙을 번호로 나열하고, 각 규칙을 1문장 이내로.
+
+### ❌ 페르소나가 대화 도중 원래 성격을 잊어버림
+
+**원인**: 대화가 길어지면 초반 프롬프트의 영향이 약해질 수 있음.
+
+**해결**: 사이드바에 "성격 초기화" 버튼을 두거나, 시스템 프롬프트를 조금 더 강조 (`**절대 규칙**` 같은 표현).
+
+### ❌ `system_instruction` 관련 오류
+
+**원인**: `types.GenerateContentConfig`의 첫 인수로 문자열이 아닌 다른 걸 넣음.
+
+**해결**: 프롬프트가 반드시 문자열(따옴표 3개 감싼 것 OK)인지 확인.
+
+## 이번 주 과제
+
+1. `prompts.py`에 여러분만의 페르소나를 하나 추가해 총 4개로 만드세요. 예: 격려 코치, 극단적 존댓말 로봇, 랩퍼, 우주선 캡틴 등.
+2. 각 페르소나에 대해 3개 이상의 few-shot 예시를 포함하세요.
+3. 페르소나마다 어울리는 temperature를 다르게 설정하세요. (사실형은 낮게, 창의형은 높게)
+4. **선택 도전**: 사이드바에 "이 페르소나에게 편지 쓰기" 버튼을 만들고, 클릭하면 챗봇이 자기 소개를 하도록 만들어보세요.
+
+## 다음 주 예고
+
+Week 4는 진짜 실용적인 영역으로 진입합니다. **PDF 파일을 업로드하면 그 내용을 바탕으로 질문에 답해주는 앱**을 만들어요. 논문 읽을 때, 계약서 검토할 때, 시험 공부할 때 유용합니다.
+
+이때 등장하는 개념이 **RAG(Retrieval-Augmented Generation)**입니다. 어려운 이름이지만 개념은 아주 단순해요. 다음 주에 봐요!
+
+<LessonNav slug="week-3" />
