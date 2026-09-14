@@ -3,373 +3,245 @@ import { LessonNav } from "@/components/lesson-nav";
 
 <LessonHeader slug="week-4" />
 
-## 이번 주에 만들 것
+## 이번 주에 할 일
 
-**PDF 파일을 업로드하면 그 내용을 바탕으로 질문에 답해주는 앱**입니다.
+지난 3주까지 AI 답변은 **줄글**이었죠. 이번 주는 AI가 **표·리스트·JSON** 같은 **구조화된 형식**으로 답하게 만듭니다.
 
-- 논문 → "이 논문의 결론이 뭐야?"
-- 계약서 → "위약금 조항 알려줘"
-- 시험 대비 자료 → "3장 핵심 5개만 요약해"
+왜 중요할까요?
 
-지금까지 만든 챗봇과 뭐가 다를까요? 이전 챗봇은 **AI가 이미 알고 있는 지식**으로만 답했어요. 이번 앱은 **여러분이 준 문서**를 근거로 답합니다. 이걸 **RAG**라고 불러요.
+- 영수증 10장 정리 → 표로 뽑히면 엑셀·노션에 그대로 붙여넣기 가능
+- 뉴스 기사 5개 → 요약·키워드·카테고리로 정리되면 분석하기 쉬움
+- 이력서 → 학력·경력이 표로 정리되면 검색·비교 편함
 
-## RAG가 뭔가요? (5분 개념)
+이 기능이 **Structured Output**입니다. Google AI Studio는 이걸 마우스 클릭 몇 번으로 세팅할 수 있어요.
 
-**RAG = Retrieval-Augmented Generation (검색 증강 생성)**
+**결과물 예시**:
 
-이름은 무섭지만 개념은 시험 볼 때 커닝페이퍼 만드는 것과 똑같습니다.
-
-### 커닝페이퍼 vs RAG 비유
-
-시험장에 커닝페이퍼를 몰래 가져갔다고 상상해봅시다. 문제가 나오면:
-
-1. 문제와 관련된 부분을 커닝페이퍼에서 찾아 (**Retrieval**, 검색)
-2. 그 부분을 참고해서 답을 쓴다 (**Generation**, 생성)
-
-RAG도 똑같습니다:
-
-1. 사용자 질문과 관련된 PDF의 일부를 찾고 (**Retrieval**)
-2. AI에게 "이 내용을 참고해서 답해줘"라며 함께 전달 (**Augmented Generation**)
-
-### 왜 그냥 PDF 전체를 AI에게 안 주죠?
-
-주면 좋겠지만 두 가지 문제가 있어요:
-
-1. **비용**: PDF 100페이지를 통째로 매번 보내면 요금이 폭발합니다.
-2. **정확도**: 관련 없는 내용까지 다 보면 AI가 헷갈립니다.
-
-그래서 **관련 있는 조각만** 골라 보내는 게 핵심입니다.
-
-### RAG 파이프라인 4단계
-
-```
-[PDF 업로드]
-  ↓
-[1] 조각내기 (Chunking) — 긴 문서를 500자 정도 조각으로 나눔
-  ↓
-[2] 숫자로 변환 (Embedding) — 각 조각을 "의미의 지문"인 숫자 벡터로 변환
-  ↓
-[3] 검색 (Retrieval) — 질문 벡터와 비슷한 조각들 찾기
-  ↓
-[4] 답변 생성 (Generation) — 찾은 조각들을 AI에게 근거로 제공
+```json
+{
+  "상호": "스타벅스 신촌점",
+  "날짜": "2026-03-15",
+  "총액": 12500,
+  "카테고리": "카페",
+  "품목": [
+    { "이름": "아메리카노 T", "가격": 4500 },
+    { "이름": "블루베리 스콘", "가격": 3800 },
+    { "이름": "샌드위치", "가격": 4200 }
+  ]
+}
 ```
 
-이 4단계를 한 주에 걸쳐 하나씩 만들어봅시다.
+이런 걸 AI가 자동으로 뽑아줍니다.
 
-## Step 1. 필요한 라이브러리 설치
+## Step 1. Structured Output 옵션 켜기
 
-```bash
-pip install pypdf numpy
-```
+AI Studio에서 **+ New chat** 새로 시작.
 
-- **pypdf**: PDF에서 텍스트 뽑아내기.
-- **numpy**: 벡터 계산 (숫자 리스트 다루는 도구).
+오른쪽 사이드바를 아래로 스크롤하면 **"Structured output"** 스위치가 있어요 (또는 **"Response format"** → **"JSON"**).
 
-## Step 2. PDF에서 텍스트 뽑기
+이걸 켜면 아래에 **"Add JSON schema"** 또는 **"Edit schema"** 같은 버튼이 나타납니다. 클릭.
 
-먼저 PDF를 읽는 것부터. 새 파일 **`pdf_test.py`**를 만들고:
+**JSON 스키마 편집기**가 열립니다. 여기서 마우스로 필드를 추가하면 됩니다.
 
-```python filename="pdf_test.py"
-from pypdf import PdfReader
+## Step 2. 첫 스키마 - 뉴스 기사 정리
 
-reader = PdfReader("test.pdf")  # 같은 폴더에 test.pdf가 있어야 함
-print(f"페이지 수: {len(reader.pages)}")
+간단한 예로 시작해봅시다. 뉴스 기사 하나를 붙여넣으면 AI가 이렇게 정리하게 하려고요:
 
-# 첫 페이지 텍스트 출력
-print(reader.pages[0].extract_text()[:500])
-```
+- **제목** (문자열)
+- **한줄요약** (문자열)
+- **키워드** (문자열 리스트, 최대 5개)
+- **카테고리** (정해진 값 중 하나: 정치/경제/사회/문화/스포츠/기타)
+- **감정 톤** (긍정/중립/부정)
 
-`ai-course` 폴더에 아무 PDF 파일을 하나 넣어 `test.pdf`로 이름을 바꾸고 실행해보세요.
+### 스키마 만들기 (버튼 클릭만으로)
 
-```bash
-python pdf_test.py
-```
+Structured Output 편집기에서:
 
-PDF 첫 500자가 화면에 나오면 성공.
+1. **"+ Add property"** 버튼 클릭.
+2. Name: `title` / Type: `string` / Description: `뉴스 기사 제목`
+3. 다시 **"+ Add property"** → Name: `summary` / Type: `string` / Description: `한 문장 요약`
+4. **"+ Add property"** → Name: `keywords` / Type: `array` / Items type: `string` / Description: `핵심 키워드 최대 5개`
+5. **"+ Add property"** → Name: `category` / Type: `string` / **Enum**에 다음 값 추가: `정치, 경제, 사회, 문화, 스포츠, 기타`
+6. **"+ Add property"** → Name: `sentiment` / Type: `string` / **Enum**: `긍정, 중립, 부정`
 
-## Step 3. 텍스트 조각내기 (Chunking)
+> **Enum이 뭐예요?** AI가 자유롭게 답하지 못하게 **정해진 몇 가지 중에서만** 고르게 하는 옵션이에요. 카테고리처럼 정해진 범주가 있을 때 필수.
 
-긴 PDF를 통으로 다루면 정확도가 떨어져요. 일정 크기로 잘라야 합니다.
+### System Instructions
 
-**청킹 함수**를 만들어봅시다. `chunker.py` 파일:
+오른쪽 사이드바 **System Instructions**에 이렇게 입력:
 
-```python filename="chunker.py"
-def chunk_text(text: str, chunk_size: int = 500, overlap: int = 100) -> list[str]:
-    """
-    긴 텍스트를 chunk_size 글자씩 조각으로 나눔.
-    앞뒤 조각이 overlap 만큼 겹치게 만들어 문맥 손실 방지.
-    """
-    chunks = []
-    start = 0
-    while start < len(text):
-        end = start + chunk_size
-        chunk = text[start:end]
-        chunks.append(chunk)
-        start = end - overlap  # 다음 조각은 overlap 만큼 앞에서 시작
-    return chunks
-```
-
-### 왜 overlap이 필요한가요?
-
-문장 중간에서 잘리면 문맥이 끊기잖아요. 예:
-
-```
-[조각 1] ...세종대왕은 훈민정음을 만들었다. 그의 업적은
-[조각 2] 지대하다. 특히 과학기술 분야에서...
-```
-
-이러면 "그의 업적은 지대하다"라는 문장이 두 조각에 걸쳐 잘려버려요. **overlap**은 조각끼리 약간 겹치게 해서 이런 손실을 방지합니다.
-
-## Step 4. Embedding — "의미의 지문"
-
-**Embedding(임베딩)**은 텍스트를 숫자 벡터로 바꾸는 과정입니다. 왜 그러냐고요?
-
-**컴퓨터는 "비슷한 의미"를 직접 이해 못 합니다.** 하지만 숫자로 바꿔놓으면 **가까운 숫자 = 비슷한 의미**로 다룰 수 있어요.
-
-예를 들어 Gemini의 embedding 모델은 문장을 **768개의 숫자**로 변환합니다:
-
-```
-"세종대왕이 한글을 만들었다"  → [0.12, -0.45, 0.78, ..., 0.03]  (768개 숫자)
-"조선의 4대 왕은 훈민정음을 창제했다" → [0.11, -0.44, 0.79, ..., 0.02]  (거의 비슷!)
-"오늘 저녁은 김치찌개다"        → [-0.88, 0.23, -0.15, ..., 0.91]  (완전히 다름)
-```
-
-첫 두 문장은 의미가 비슷하니 숫자도 비슷하고, 셋째는 완전히 다르니 숫자도 다릅니다.
-
-### Gemini로 embedding 만들기
-
-`embed_test.py`:
-
-```python filename="embed_test.py"
-import os
-from dotenv import load_dotenv
-from google import genai
-
-load_dotenv()
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-
-result = client.models.embed_content(
-    model="gemini-embedding-001",
-    contents=["세종대왕이 한글을 만들었다"],
-)
-vec = result.embeddings[0].values
-print(f"벡터 길이: {len(vec)}")
-print(f"앞 5개 숫자: {vec[:5]}")
-```
-
-실행하면 이렇게 나옵니다:
-
-```
-벡터 길이: 3072
-앞 5개 숫자: [0.023, -0.041, 0.017, ..., 0.008]
-```
-
-## Step 5. 유사도 검색
-
-두 벡터가 얼마나 비슷한지 재는 **코사인 유사도(cosine similarity)**를 씁니다. 수학은 몰라도 돼요. 함수 하나만 알면 됩니다.
-
-`similarity.py`:
-
-```python filename="similarity.py"
-import numpy as np
-
-def cosine_similarity(a: list[float], b: list[float]) -> float:
-    """두 벡터의 유사도를 -1(반대) ~ 1(똑같음) 사이 숫자로 리턴."""
-    a_np, b_np = np.array(a), np.array(b)
-    return float(np.dot(a_np, b_np) / (np.linalg.norm(a_np) * np.linalg.norm(b_np)))
-```
-
-## Step 6. PDF QA 앱 완성하기 🎉
-
-이제 조각들을 모아서 진짜 PDF QA 앱을 만듭시다. **`pdf_chat.py`**:
-
-```python filename="pdf_chat.py"
-import os
-import numpy as np
-import streamlit as st
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
-from pypdf import PdfReader
-
-load_dotenv()
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-
-st.title("📄 PDF와 대화하기")
-
-# --- 유틸 함수들 ---
-
-def chunk_text(text: str, size: int = 500, overlap: int = 100) -> list[str]:
-    chunks = []
-    start = 0
-    while start < len(text):
-        chunks.append(text[start:start + size])
-        start += size - overlap
-    return chunks
-
-def embed(texts: list[str]) -> list[list[float]]:
-    """여러 텍스트를 한 번에 embedding으로 변환."""
-    result = client.models.embed_content(
-        model="gemini-embedding-001",
-        contents=texts,
-    )
-    return [e.values for e in result.embeddings]
-
-def cosine(a, b) -> float:
-    a, b = np.array(a), np.array(b)
-    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
-
-def top_k_chunks(query_vec, chunks, chunk_vecs, k=3):
-    """질문 벡터와 가장 가까운 청크 k개를 리턴."""
-    scores = [cosine(query_vec, v) for v in chunk_vecs]
-    top_indices = np.argsort(scores)[-k:][::-1]  # 점수 높은 순
-    return [(chunks[i], scores[i]) for i in top_indices]
-
-# --- UI ---
-
-# PDF 업로드
-uploaded = st.file_uploader("PDF를 업로드하세요", type=["pdf"])
-
-if uploaded:
-    # 이미 처리한 파일이면 다시 안 함 (캐시)
-    if st.session_state.get("filename") != uploaded.name:
-        with st.spinner("PDF 읽는 중..."):
-            reader = PdfReader(uploaded)
-            full_text = "\n".join(page.extract_text() or "" for page in reader.pages)
-        with st.spinner(f"{len(full_text):,}자 텍스트를 조각내는 중..."):
-            chunks = chunk_text(full_text)
-        with st.spinner(f"{len(chunks)}개 조각을 embedding으로 변환 중..."):
-            chunk_vecs = embed(chunks)
-
-        st.session_state.chunks = chunks
-        st.session_state.chunk_vecs = chunk_vecs
-        st.session_state.filename = uploaded.name
-        st.session_state.messages = []
-
-    st.success(f"✅ **{uploaded.name}** 준비 완료 ({len(st.session_state.chunks)}개 조각)")
-
-    # 채팅 UI
-    for msg in st.session_state.get("messages", []):
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
-
-    user_q = st.chat_input("PDF에 대해 무엇이든 물어보세요...")
-    if user_q:
-        st.session_state.messages.append({"role": "user", "content": user_q})
-        with st.chat_message("user"):
-            st.write(user_q)
-
-        with st.chat_message("assistant"):
-            with st.spinner("관련 부분 찾는 중..."):
-                # 1) 질문을 벡터로
-                q_vec = embed([user_q])[0]
-                # 2) 가장 관련 있는 청크 3개 찾기
-                top = top_k_chunks(q_vec, st.session_state.chunks, st.session_state.chunk_vecs, k=3)
-                context = "\n\n---\n\n".join(chunk for chunk, _ in top)
-
-            # 3) 프롬프트에 context 넣어서 AI에게 질문
-            system = """
-당신은 사용자가 업로드한 문서를 근거로 답변하는 도우미입니다.
+```text
+당신은 뉴스 기사 분석 전문가입니다. 사용자가 붙여넣은 뉴스 기사를 
+읽고, 지정된 JSON 스키마 형식으로 정확하게 정리하세요.
 
 규칙:
-1. 답변은 반드시 아래 [참고 자료] 안의 내용만 근거로 한다.
-2. 참고 자료에 없는 내용은 "문서에서 찾을 수 없습니다"라고 답한다.
-3. 추측하거나 상상해서 답하지 않는다.
-4. 답변 마지막에 어떤 부분을 참고했는지 짧게 언급한다.
-"""
-            prompt = f"[참고 자료]\n{context}\n\n[질문]\n{user_q}"
-
-            stream = client.models.generate_content_stream(
-                model="gemini-2.5-flash",
-                contents=prompt,
-                config=types.GenerateContentConfig(system_instruction=system),
-            )
-            answer = st.write_stream(chunk.text for chunk in stream)
-
-            # 어떤 청크를 참고했는지 접힌 영역에 표시
-            with st.expander(f"📎 참고한 문서 조각 {len(top)}개 보기"):
-                for i, (chunk, score) in enumerate(top, 1):
-                    st.markdown(f"**조각 {i}** (유사도: {score:.3f})")
-                    st.text(chunk)
-                    st.divider()
-
-        st.session_state.messages.append({"role": "assistant", "content": answer})
-else:
-    st.info("👆 왼쪽에서 PDF 파일을 업로드하면 대화를 시작할 수 있어요.")
+- title은 원문에서 그대로 가져옵니다.
+- summary는 반드시 한 문장으로 압축합니다.
+- keywords는 명사 중심으로, 중복 없이 3~5개.
+- category와 sentiment는 스키마에 정의된 값 중에서만 고릅니다.
 ```
 
-## Step 7. 실행하고 테스트!
+### 테스트
 
-```bash
-streamlit run pdf_chat.py
+가운데 대화창에 아무 뉴스 기사를 복사해서 붙여넣어보세요. 네이버 뉴스든, 신문 웹사이트든.
+
+그리고 **Run**.
+
+결과가 이렇게 나옵니다:
+
+```json
+{
+  "title": "삼성전자, 3분기 영업이익 사상 최대치 경신",
+  "summary": "삼성전자가 반도체 부문 실적 회복에 힘입어 3분기 영업이익이 전년 대비 274% 증가한 12조원을 기록했다.",
+  "keywords": ["삼성전자", "영업이익", "반도체", "3분기", "실적"],
+  "category": "경제",
+  "sentiment": "긍정"
+}
 ```
 
-브라우저에서:
-1. 아무 PDF나 업로드 (교과서, 논문, 매뉴얼)
-2. 잠시 처리 대기 (첫 로드는 embedding 만드느라 시간 걸림)
-3. "이 문서의 핵심 3가지 알려줘" 같은 질문 입력
-4. AI가 문서 내용을 근거로 답변
+이 JSON을 그대로 노션 데이터베이스나 엑셀에 붙여넣을 수 있어요.
 
-**아래 접힌 "참고한 문서 조각" 부분을 꼭 열어보세요.** AI가 어떤 문장을 근거로 답변했는지 볼 수 있어요. 이게 RAG의 큰 장점 — **투명성**입니다.
+## Step 3. 영수증 정리 앱 만들기 🧾
 
-## Step 8. 성능을 조금 더 개선하기 (선택)
+이번 주의 하이라이트. 이미지 이해(Week 3) + 구조화 출력(Week 4)의 조합.
 
-### 개선 1: 청크 크기 조정
+### 새 프롬프트 시작
 
-- 청크가 너무 짧으면 문맥이 부족.
-- 너무 길면 관련 없는 내용도 섞임.
-- **일반적으로 300~800자**가 적당. 여러분 문서 타입에 맞게 실험.
+**+ New chat**.
 
-### 개선 2: 검색 청크 수(k) 조정
+### 스키마 만들기
 
-`top_k_chunks(..., k=3)`의 k를 3~7 사이로 실험. 많으면 정확도 ↑, 비용 ↑.
+**Structured output** 켜고, 다음 필드를 추가:
 
-### 개선 3: 페이지 번호 함께 저장
+- `store_name`: string, "상호명"
+- `date`: string, "구매 날짜 (YYYY-MM-DD 형식)"
+- `total_amount`: number, "총 결제 금액 (원)"
+- `category`: string, enum: [`식비`, `카페`, `쇼핑`, `교통`, `의료`, `기타`]
+- `items`: array
+  - items type: **object**
+  - object 내부 property:
+    - `name`: string, "품목명"
+    - `quantity`: integer, "수량"
+    - `price`: number, "가격"
 
-지금은 어느 페이지에서 온 조각인지 몰라요. 청킹할 때 페이지 번호를 함께 저장하면 "3페이지 참고" 같은 인용이 가능합니다.
+### System Instructions
 
-```python
-# 청킹을 페이지 단위로 하는 예시
-chunks_with_pages = []
-for page_num, page in enumerate(reader.pages, 1):
-    text = page.extract_text() or ""
-    for c in chunk_text(text):
-        chunks_with_pages.append({"page": page_num, "text": c})
+```text
+당신은 한국 영수증 정보 추출 전문가입니다. 
+사용자가 업로드한 영수증 이미지에서 지정된 필드를 정확히 뽑아냅니다.
+
+규칙:
+- 읽을 수 없는 필드는 null로 둡니다.
+- 날짜는 반드시 YYYY-MM-DD 형식으로.
+- total_amount는 숫자만 (원화 기호 제외).
+- 품목명이 흐릿하거나 안 보이면 items를 빈 배열로.
+- category는 스키마에 정의된 값에서만 선택.
 ```
 
-## 자주 발생하는 오류
+저장: `영수증 자동 정리`.
 
-### ❌ `PdfReadError: EOF marker not found`
+### 테스트
 
-**원인**: PDF 파일이 손상되었거나 스캔된 이미지 PDF.
+영수증 사진 하나를 대화창에 업로드하고, 메시지는 이거 하나만 입력:
 
-**해결**: 다른 PDF로 시도. 스캔 PDF는 Week 5의 OCR 기술이 필요해요.
+```
+이 영수증을 정리해줘.
+```
 
-### ❌ `Resource has been exhausted` (embedding API 오류)
+이런 결과가 나옵니다:
 
-**원인**: 무료 요금제 embedding 한도 초과 (분당 요청 수).
+```json
+{
+  "store_name": "스타벅스 신촌점",
+  "date": "2026-03-15",
+  "total_amount": 12500,
+  "category": "카페",
+  "items": [
+    { "name": "아메리카노 T", "quantity": 1, "price": 4500 },
+    { "name": "블루베리 스콘", "quantity": 1, "price": 3800 },
+    { "name": "샌드위치", "quantity": 1, "price": 4200 }
+  ]
+}
+```
 
-**해결**: 
-1. 유료 요금제 활성화 확인.
-2. 청크 수를 줄이거나(청크 크기 늘리기), 짧은 PDF로 테스트.
+## Step 4. 여러 영수증 한번에 정리
 
-### ❌ AI가 문서 내용을 무시하고 자기 지식으로 답변함
+한 번의 대화에 영수증 여러 장을 업로드할 수도 있어요. 클립 아이콘으로 3~5장 추가 → 메시지: `이 영수증들 모두 정리해줘.`
 
-**원인**: 시스템 프롬프트가 약하거나 검색된 청크가 관련 없음.
+AI가 각 영수증을 배열로 정리해줍니다. **JSON 스키마를 배열의 배열로 만들면** 더 깔끔하게 나오는데, 이건 심화 과제.
 
-**해결**:
-1. 시스템 프롬프트에서 "반드시", "절대"를 강조.
-2. 청크 크기·overlap을 실험해서 검색 정확도 개선.
+## Step 5. 이력서 파싱 앱 (실용적)
+
+문과생 여러분에게 실용적인 앱 하나. 자기소개서·이력서를 붙여넣으면 자동 정리.
+
+### 스키마
+
+- `name`: string
+- `contact`: object (email, phone)
+- `education`: array of object (school, major, degree, year)
+- `experience`: array of object (company, role, period, description)
+- `skills`: array of string
+- `certifications`: array of string
+
+### System Instructions
+
+```text
+당신은 이력서·자소서 파서입니다. 사용자가 붙여넣은 텍스트에서 
+경력·학력·기술·자격 정보를 정확히 추출합니다.
+
+규칙:
+- 추측하지 않습니다. 없는 정보는 null 또는 빈 배열.
+- 날짜는 YYYY-MM 형식.
+- 학력은 최신 순으로 정렬.
+- 경력도 최신 순.
+```
+
+이걸 만들어두면 여러분 자소서를 붙여넣어 검토용으로도 쓸 수 있고, 취업 준비 때 회사별로 재구성할 때 유용해요.
+
+## Step 6. 스키마 만들기 팁
+
+Structured Output을 잘 쓰는 요령:
+
+### 팁 1. Description은 자세히
+
+각 필드의 **Description**에 상세히 적을수록 AI가 정확히 채워요:
+
+- ❌ `"날짜"`
+- ✅ `"구매 날짜, YYYY-MM-DD 형식, 시각은 포함하지 않음"`
+
+### 팁 2. Enum 적극 활용
+
+카테고리·상태 같은 필드는 반드시 **enum**으로 값을 제한. 안 그러면 매번 다른 표현이 나옵니다.
+
+### 팁 3. Required 필드 명시
+
+정말 필요한 필드는 **Required**로 표시. AI가 반드시 채웁니다.
+
+### 팁 4. 중첩 구조 사용
+
+품목처럼 여러 개가 있는 건 **array**, 그 안의 각 항목은 **object**. 처음엔 복잡해 보여도 몇 번 만들면 익숙해집니다.
+
+### 팁 5. 짧게 시작
+
+한 번에 30개 필드 만들지 마세요. 3~5개로 시작해서 잘 되면 늘리기.
 
 ## 이번 주 과제
 
-1. 여러분 학과 전공 서적이나 논문 PDF를 업로드해 테스트하세요.
-2. 청크 크기를 200, 500, 1000으로 바꿔가며 답변 품질을 비교해보세요.
-3. 사이드바에 청크 크기, k값을 조정하는 슬라이더를 추가하세요.
-4. **선택 도전**: 두 개 PDF를 동시에 업로드해서 함께 검색하는 앱으로 확장. (힌트: `st.file_uploader(..., accept_multiple_files=True)`)
+1. **영수증 자동 정리** 프롬프트 저장 & 공유 URL 발급.
+2. 실제 영수증 5장을 업로드해서 결과를 정리. 스크린샷.
+3. **뉴스 기사 분석기** 프롬프트 저장.
+4. 관심 있는 뉴스 기사 3개를 처리해서 결과 비교.
+5. **선택 도전**: 여러분만의 데이터 정리 앱을 만드세요. 아이디어:
+   - 요리 레시피 → 재료·조리 시간·난이도 표로
+   - 영화 리뷰 → 평점·장르·감정 정리
+   - 여행 계획 → 날짜별·장소별 정리
 
 ## 다음 주 예고
 
-Week 5에서는 **이미지를 이해하는 AI**를 다룹니다. Gemini는 텍스트뿐 아니라 이미지도 이해할 수 있어요. 사진을 올리면 설명해주고, **영수증 사진을 올리면 상호·금액·날짜를 자동 정리**해주는 앱을 만들어봅시다.
+지난 4주는 **AI Studio 안**에서만 놀았어요. 링크로 공유는 됐지만, 진짜 **웹앱**은 아니었죠 (Google 로그인 필요, UI 제한).
+
+Week 5부터 **진짜 웹앱**을 만듭니다. **v0.dev**라는 도구를 씁니다. 여러분이 한국어로 "이런 앱 만들어줘"라고 부탁하면, **진짜 웹사이트가 만들어지고 인터넷에 자동 배포**됩니다.
+
+파이썬은 여전히 필요 없어요. 그냥 대화하면서 앱을 만드는 시대입니다. 😎
 
 <LessonNav slug="week-4" />

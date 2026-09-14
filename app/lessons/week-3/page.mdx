@@ -3,410 +3,189 @@ import { LessonNav } from "@/components/lesson-nav";
 
 <LessonHeader slug="week-3" />
 
-## 이번 주에 배울 것
+## 이번 주에 할 일
 
-똑같은 질문 "안녕?"에 대해:
+지난 2주는 텍스트만 다뤘어요. 이번 주는 **이미지**를 다룹니다.
 
-- 기본 챗봇: "안녕하세요! 무엇을 도와드릴까요?"
-- 조선시대 선비 챗봇: "허허, 반갑구려. 무슨 일로 이 늙은이를 찾으셨는가?"
-- 츤데레 챗봇: "흥, 별로 반갑진 않지만... 무슨 일이야?"
+두 가지 방향으로 이미지를 씁니다:
 
-같은 AI로 완전히 다른 캐릭터를 만들 수 있어요. 이걸 결정하는 게 **프롬프트(prompt)**입니다. 이번 주는 프롬프트만 잘 써도 챗봇의 성능이 완전히 달라진다는 걸 배웁니다.
+1. **이미지 → 텍스트** (Vision): 사진을 보여주면 AI가 설명해줌
+   - 여행 사진 → 자동 캡션
+   - 스캔한 노트 → 텍스트 정리
+2. **텍스트 → 이미지** (Imagen): 상상을 이미지로
+   - "구름 위에 앉은 고양이가 커피 마시는 수채화" → 진짜 그림 생성
 
-## 프롬프트가 뭔가요?
+**여전히 코드는 필요 없습니다.** 전부 AI Studio 안에서 마우스로 해결.
 
-**프롬프트 = AI에게 주는 지시문**입니다. 크게 두 종류가 있어요:
+## Part 1: 이미지 이해하기 (Vision)
 
-| 종류 | 언제 쓰나요? | 예시 |
-|---|---|---|
-| **System 프롬프트** | AI에게 역할·규칙·성격을 미리 설정 | "너는 조선시대 선비다. 항상 하오체로 말한다." |
-| **User 프롬프트** | 사용자가 실제로 던지는 질문 | "요즘 세상 참 어렵죠?" |
+### Step 1. AI Studio에서 이미지 업로드
 
-시스템 프롬프트는 대화가 시작하기 전에 미리 정해두는 "무대 설정"이에요. 사용자에겐 보이지 않지만 AI 행동을 결정합니다.
+<a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a>에서 새 대화(**+ New chat**)를 엽니다.
 
-## Step 1. 첫 페르소나 챗봇 — 조선시대 선비
+가운데 대화창 하단, 입력창 왼쪽에 **➕ 또는 클립 아이콘**이 있어요. 이걸 클릭하면 파일 업로드 옵션이 뜹니다.
 
-지난 주 `chatbot.py`를 복사해서 **`scholar_bot.py`**를 만들고, 시스템 프롬프트를 추가합시다.
+- **Upload File**: 컴퓨터에서 이미지 선택
+- **Take a photo**: 웹캠으로 찍기 (Mac은 잘 됨)
 
-```python filename="scholar_bot.py" {13-24, 51}
-import os
-import streamlit as st
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+여러분의 폰에서 여행 사진 하나를 컴퓨터로 옮겨서 업로드해보세요. 아니면 아무 사진이나 OK.
 
-load_dotenv()
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+### Step 2. 이미지에 대해 물어보기
 
-st.title("🎓 조선시대 선비와 대화하기")
-st.caption("모든 답변은 하오체로, 유교 경전을 인용하며, 요즘 세태에 대한 걱정을 곁들입니다.")
-
-# ⭐ 시스템 프롬프트 — 챗봇의 정체성
-SYSTEM_PROMPT = """
-당신은 조선시대 선비 '이한(李翰)'입니다. 다음 규칙을 반드시 지킵니다:
-
-1. 항상 '~하오', '~구려', '~외다' 같은 하오체를 사용한다.
-2. '~합니다', '~해요' 같은 현대어는 절대 쓰지 않는다.
-3. 대답 중 논어, 맹자, 대학, 중용에서 한 구절을 자주 인용한다 (인용문은 원문 한자와 한글 해석을 함께 제시).
-4. 현대 문물(스마트폰, 인공지능 등)에 대한 질문에는 놀라고 신기해하면서도 유교적 관점에서 해석한다.
-5. 답변 끝에는 짧은 훈계나 인생 조언을 덧붙인다.
-6. 이모지는 절대 사용하지 않는다.
-"""
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-with st.sidebar:
-    if st.button("🗑️ 대화 초기화"):
-        st.session_state.messages = []
-        st.rerun()
-
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
-
-user_input = st.chat_input("선비에게 질문하시오...")
-
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.write(user_input)
-
-    with st.chat_message("assistant"):
-        history = [
-            types.Content(
-                role="user" if m["role"] == "user" else "model",
-                parts=[types.Part(text=m["content"])],
-            )
-            for m in st.session_state.messages
-        ]
-        stream = client.models.generate_content_stream(
-            model="gemini-2.5-flash",
-            contents=history,
-            # ⭐ 시스템 프롬프트를 config로 전달
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-            ),
-        )
-        answer = st.write_stream(chunk.text for chunk in stream)
-
-    st.session_state.messages.append({"role": "assistant", "content": answer})
-```
-
-실행:
-
-```bash
-streamlit run scholar_bot.py
-```
-
-이런 대답이 나올 거예요:
-
-> **나**: 안녕하세요, 요즘 어떻게 지내세요?
->
-> **선비 이한**: 허, 반갑구려. 논어에 이르기를 "有朋自遠方來, 不亦樂乎(유붕자원방래, 불역락호)" 즉 "벗이 먼 곳에서 찾아오니 이 또한 즐겁지 아니한가"라 하였소. 노생은 그저 책을 읽고 산책을 하며 지낼 뿐이오. 그대는 무엇에 힘쓰고 있는가? 사람은 하루도 학문을 놓아서는 아니 되는 법이외다.
-
-## Step 2. 프롬프트 엔지니어링의 4가지 원칙
-
-좋은 시스템 프롬프트를 만드는 원칙을 배웁시다.
-
-### 원칙 1: 명확한 역할 부여
-
-❌ 나쁜 예: "너는 좋은 챗봇이야"
-✅ 좋은 예: "너는 15년차 초등학교 4학년 담임 선생님이다. 학생들이 이해하기 쉬운 비유와 예시로 설명한다."
-
-### 원칙 2: 규칙을 번호로 나열
-
-AI는 목록 형태의 지시를 잘 따릅니다:
+이미지가 대화창 위에 미리보기로 뜬 상태에서, 입력창에 이렇게 써보세요:
 
 ```
-다음 규칙을 지키세요:
-1. 답변은 항상 3문장 이내
-2. 전문 용어를 쓸 땐 반드시 괄호로 쉬운 설명을 붙임
-3. 답변 끝에 관련 이모지 하나
+이 사진에 뭐가 보여? 한국어로 상세하게 설명해줘.
 ```
 
-### 원칙 3: 하지 말 것도 명시
+`Enter` → 잠시 후 AI가 사진을 보고 답변합니다.
 
-"~하지 않는다"도 강한 지침이 됩니다:
+**놀랍지 않나요?** AI가 정말로 사진을 이해합니다. 색깔, 사물, 표정, 분위기까지.
 
-```
-- 개인정보는 절대 요구하지 않는다
-- 확실하지 않은 정보는 "잘 모르겠어요"라고 답한다
-```
+### Step 3. 이미지에 관한 다양한 질문
 
-### 원칙 4: Few-shot 예시 제공
+같은 사진에 대해 다양한 질문을 던져보세요:
 
-말로 설명하기 어려운 톤은 **예시**로 보여주는 게 최고입니다:
+- `이 사진의 분위기를 한 문장으로 표현해줘`
+- `이 사진에 어울리는 인스타 캡션 만들어줘. 감성적으로.`
+- `이 사진을 초등학생이 이해할 수 있게 설명해줘`
+- `이 사진 속 상황이 왜 웃긴지 (혹은 슬픈지) 분석해줘`
 
-```
-말투 예시:
-- 사용자: 오늘 우울해
-- 챗봇: 어이구, 우리 친구 무슨 일이야? 얘기해봐! 🥺
+## Step 4. 여행 사진 자동 캡션 앱 (System Instructions 활용)
 
-- 사용자: 시험 망쳤어
-- 챗봇: 아이고, 속상하겠다ㅜㅜ 그래도 다음이 있잖아!
-```
+이번엔 페르소나 챗봇처럼 시스템 지시로 **"여행 사진 캡션 전문가"**를 만들어봅시다.
 
-## Step 3. Few-shot으로 말투 정교화
+**+ New chat** → System instructions에:
 
-츤데레 챗봇을 만들어봅시다. **`tsundere_bot.py`**:
+```text
+당신은 인스타그램 감성 캡션 전문가입니다.
 
-```python filename="tsundere_bot.py"
-import os
-import streamlit as st
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+【역할】
+사용자가 여행 사진을 올리면, 아래 형식으로 캡션 3가지 스타일을 제안합니다.
 
-load_dotenv()
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+【답변 형식】
+✨ **감성적** 
+[3~4문장, 시적이고 잔잔한 톤. #해시태그 3개 포함]
 
-SYSTEM_PROMPT = """
-당신은 '유리'입니다. 다음 규칙을 지킵니다:
+😎 **위트있게**
+[2~3문장, 짧고 재치있게. 이모지 2~3개 자연스럽게 배치]
 
-성격 설정:
-- 겉으론 차갑고 무뚝뚝하지만 속으론 사용자를 걱정한다 (츤데레).
-- 존댓말은 절대 쓰지 않고 반말로만 답한다.
-- 대답을 감정 표현(^^, ㅋㅋ, 하...) 없이 툭툭 던진다.
-- 하지만 상대가 정말 힘들어할 때는 짧게 진심 어린 위로를 건넨다.
+📖 **긴 여행기**
+[5~7문장, 그 순간의 감정과 배경을 담아 진솔하게. 마지막에 여행에서 얻은 인사이트 한 줄]
 
-말투 예시:
-사용자: 안녕!
-유리: ...안녕. 무슨 일인데.
-
-사용자: 시험 잘 봤어?
-유리: 뭐, 그럭저럭. 너는? ...아, 관심 있어서 물어본 거 아니야.
-
-사용자: 나 좀 도와줄래?
-유리: 하... 어쩔 수 없지. 뭔데.
-
-사용자: 오늘 정말 힘들었어. 아무도 나를 이해 안 해주는 것 같아.
-유리: ...그래. 힘들었겠다. 나는 여기 있어. 얘기해봐.
-"""
-
-st.title("💢 유리와 대화하기")
-st.caption("주의: 유리는 상냥하지 않습니다.")
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-with st.sidebar:
-    if st.button("🗑️ 대화 초기화"):
-        st.session_state.messages = []
-        st.rerun()
-
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
-
-user_input = st.chat_input("유리에게 말 걸어보기...")
-
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.write(user_input)
-
-    with st.chat_message("assistant"):
-        history = [
-            types.Content(
-                role="user" if m["role"] == "user" else "model",
-                parts=[types.Part(text=m["content"])],
-            )
-            for m in st.session_state.messages
-        ]
-        stream = client.models.generate_content_stream(
-            model="gemini-2.5-flash",
-            contents=history,
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                temperature=0.9,  # 창의성 ↑
-            ),
-        )
-        answer = st.write_stream(chunk.text for chunk in stream)
-
-    st.session_state.messages.append({"role": "assistant", "content": answer})
+【규칙】
+- 사진 속 실제 요소(색감, 시간대, 사물, 분위기)를 반드시 반영한다.
+- 국가·지역이 명확히 보이면 언급하고, 애매하면 상상으로 채우지 않는다.
+- 각 스타일 사이에 구분선 --- 을 넣는다.
 ```
 
-### temperature가 뭔가요?
+Temperature: **0.9** (창의성 높게)
 
-- `0.0` (낮음): 매번 거의 같은 답변. 딱딱하고 사실 중심.
-- `1.0` (기본): 자연스러운 다양성.
-- `2.0` (높음): 창의적이고 예측 불가능. 때론 이상한 답변도.
+저장: `여행 사진 캡션 전문가`.
 
-캐릭터 챗봇은 `0.7~1.0`이 적당해요. 사실 검색용 챗봇은 `0.2~0.4`가 좋습니다.
+이제 여행 사진 몇 장 올려서 테스트해보세요. 세 가지 스타일의 캡션이 나옵니다.
 
-## Step 4. 프롬프트를 코드에서 분리하기 (조금 프로답게)
+**이걸 인스타 올리기 전에 실제로 참고 자료로 쓰면 진짜 유용해요.**
 
-프롬프트가 길어지면 코드가 지저분해져요. 별도 파일로 분리합시다.
+## Step 5. 영수증에서 정보 뽑기
 
-`prompts.py` 파일을 새로 만들고:
-
-```python filename="prompts.py"
-SCHOLAR_PROMPT = """
-당신은 조선시대 선비 '이한(李翰)'입니다.
-[... 전체 규칙 ...]
-"""
-
-TSUNDERE_PROMPT = """
-당신은 '유리'입니다.
-[... 전체 규칙 ...]
-"""
-
-CHEF_PROMPT = """
-당신은 미슐랭 3스타 셰프 '박찬성'입니다.
-1. 재료 이름을 말하면 그것으로 만들 수 있는 요리 3가지를 추천한다.
-2. 각 요리에 대해 조리 시간과 난이도(★1~5)를 함께 알려준다.
-3. 초보자에게는 실패하지 않는 팁을 꼭 덧붙인다.
-4. 어투는 부드럽지만 요리 실력에 대한 자신감이 묻어난다.
-"""
-```
-
-그러면 챗봇 코드에서:
-
-```python
-from prompts import SCHOLAR_PROMPT
-# ...
-config=types.GenerateContentConfig(system_instruction=SCHOLAR_PROMPT)
-```
-
-이렇게 깔끔하게 쓸 수 있어요.
-
-## Step 5. 여러 페르소나 중 선택하는 앱
-
-사이드바에서 페르소나를 골라 대화하는 통합 챗봇을 만들어봅시다. **`persona_bot.py`**:
-
-```python filename="persona_bot.py"
-import os
-import streamlit as st
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
-from prompts import SCHOLAR_PROMPT, TSUNDERE_PROMPT, CHEF_PROMPT
-
-load_dotenv()
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-
-PERSONAS = {
-    "🎓 조선시대 선비": SCHOLAR_PROMPT,
-    "💢 츤데레 유리": TSUNDERE_PROMPT,
-    "👨‍🍳 미슐랭 셰프": CHEF_PROMPT,
-}
-
-st.title("🎭 페르소나 챗봇")
-
-# 사이드바에서 페르소나 선택
-with st.sidebar:
-    selected = st.radio("어떤 챗봇과 대화할까요?", list(PERSONAS.keys()))
-
-    # 페르소나가 바뀌면 대화 초기화
-    if "current_persona" not in st.session_state:
-        st.session_state.current_persona = selected
-    if selected != st.session_state.current_persona:
-        st.session_state.messages = []
-        st.session_state.current_persona = selected
-
-    if st.button("🗑️ 대화 초기화"):
-        st.session_state.messages = []
-        st.rerun()
-
-st.caption(f"현재 대화 상대: **{selected}**")
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
-
-user_input = st.chat_input("메시지를 입력하세요...")
-
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.write(user_input)
-
-    with st.chat_message("assistant"):
-        history = [
-            types.Content(
-                role="user" if m["role"] == "user" else "model",
-                parts=[types.Part(text=m["content"])],
-            )
-            for m in st.session_state.messages
-        ]
-        stream = client.models.generate_content_stream(
-            model="gemini-2.5-flash",
-            contents=history,
-            config=types.GenerateContentConfig(
-                system_instruction=PERSONAS[selected],
-                temperature=0.9,
-            ),
-        )
-        answer = st.write_stream(chunk.text for chunk in stream)
-
-    st.session_state.messages.append({"role": "assistant", "content": answer})
-```
-
-실행하고 사이드바에서 페르소나를 바꿔가며 대화해보세요.
-
-## Step 6. 실전 팁 — 프롬프트 디버깅
-
-만든 챗봇이 원하는 대로 동작하지 않을 때 시도해볼 것들:
-
-### 팁 1: 규칙을 위 순서로 배치
-
-AI는 프롬프트의 **앞부분에 있는 지시**를 더 잘 따릅니다. 가장 중요한 규칙을 맨 위로.
-
-### 팁 2: "하지 마"보다는 "이렇게 해"
-
-❌ "이모지를 쓰지 마"
-✅ "답변은 이모지 없이 텍스트만으로 작성한다"
-
-### 팁 3: 대문자·기호로 강조
-
-정말 중요한 규칙은 대문자, 별표, 느낌표로 눈에 띄게:
+이미지 이해의 실용적 활용법. 영수증 사진 한 장을 업로드하고:
 
 ```
-**⚠️ 절대 규칙**: 사용자의 이름을 물어보지 않는다.
+이 영수증에서 다음 정보를 뽑아줘. 모르는 건 "확인 불가"로 답해.
+
+- 상호명
+- 방문 날짜
+- 총 결제 금액
+- 카테고리 (식당/카페/편의점/기타 중 선택)
+- 구매 품목 리스트 (있으면)
 ```
 
-### 팁 4: 예시가 최고
+AI가 텍스트로 정리해서 뿌려줍니다.
 
-말로 100번 설명하는 것보다 예시 3개가 낫습니다. "이런 질문엔 이런 식으로 답변해" 예시를 3~5개 넣어보세요.
+> 💡 다음 주에는 이걸 **표(테이블) 형식으로 자동 정리**하는 방법을 배웁니다.
 
-## 자주 발생하는 오류
+## Step 6. 여러 이미지 한번에
 
-### ❌ 챗봇이 시스템 프롬프트를 무시함
+이미지를 여러 장 업로드할 수도 있어요. 클립 아이콘을 여러 번 눌러 사진 2~3장 추가:
 
-**원인**: 프롬프트가 너무 모호하거나, temperature가 너무 높음.
+- `두 사진의 차이점을 5가지 찾아줘` (다른 그림 찾기)
+- `세 장 중 인스타에 올리기 제일 좋은 사진을 골라줘. 이유도.`
+- `이 4장을 시간 순서대로 나열해줘`
 
-**해결**:
-1. 프롬프트에 구체적 예시 3개 이상 추가.
-2. temperature를 낮춤 (0.5 정도로).
-3. 규칙을 번호로 나열하고, 각 규칙을 1문장 이내로.
+## Part 2: 이미지 생성하기 (Imagen)
 
-### ❌ 페르소나가 대화 도중 원래 성격을 잊어버림
+Google AI Studio는 **텍스트로 이미지를 생성**하는 기능도 있어요.
 
-**원인**: 대화가 길어지면 초반 프롬프트의 영향이 약해질 수 있음.
+### Step 7. Imagen 접근하기
 
-**해결**: 사이드바에 "성격 초기화" 버튼을 두거나, 시스템 프롬프트를 조금 더 강조 (`**절대 규칙**` 같은 표현).
+왼쪽 사이드바 아래쪽에 **"Media generation"** 또는 **"Image"** 메뉴가 있어요.
 
-### ❌ `system_instruction` 관련 오류
+또는 대화창의 모델 선택 드롭다운에서 **"Imagen"** 시리즈를 선택할 수도 있습니다 (버전은 UI에 따라 다를 수 있음, 최신 Imagen 선택).
 
-**원인**: `types.GenerateContentConfig`의 첫 인수로 문자열이 아닌 다른 걸 넣음.
+### Step 8. 첫 이미지 생성
 
-**해결**: 프롬프트가 반드시 문자열(따옴표 3개 감싼 것 OK)인지 확인.
+Imagen 화면에 프롬프트 입력창이 있어요. 이런 걸 넣어봅시다:
+
+```
+구름 위에 앉은 고양이가 아메리카노를 마시는 수채화. 파스텔 색감, 부드러운 붓 자국.
+```
+
+`Generate` 버튼 → 30초~1분 후 이미지 4장 생성.
+
+### Step 9. 이미지 프롬프트 잘 쓰는 공식
+
+Imagen이 좋은 이미지를 만들려면 프롬프트에 다음이 들어가야 좋아요:
+
+```
+[주제] + [상황·행동] + [스타일] + [색감/조명] + [카메라·구도]
+```
+
+예시:
+
+- ❌ 나쁨: `고양이`
+- ✅ 좋음: `털이 부드러운 러시안블루 고양이 (주제) + 창가에서 낮잠 자는 (상황) + 유화 스타일 (스타일) + 따뜻한 오후 햇살 (조명) + 클로즈업 (구도)`
+
+### Step 10. 다양한 스타일 실험
+
+같은 주제로 스타일만 바꿔서 여러 번 생성해보세요:
+
+- `우주에서 지구를 바라보는 우주인, 3D 렌더링, 시네마틱`
+- `우주에서 지구를 바라보는 우주인, 수채화, 몽환적`
+- `우주에서 지구를 바라보는 우주인, 픽셀아트, 8비트`
+- `우주에서 지구를 바라보는 우주인, 만화 스타일, 밝고 경쾌`
+
+같은 아이디어인데 결과물이 완전히 달라요.
+
+## Step 11. 실전 활용 예시
+
+이번 주에 배운 것으로 실제로 할 수 있는 일들:
+
+1. **SNS 감성 관리**: 여행 사진 → 자동 캡션 → 그대로 인스타 업로드
+2. **가계부 정리**: 영수증 사진 → 텍스트 뽑기 → 노션·엑셀에 정리
+3. **발표 자료 이미지**: 발표 슬라이드용 이미지를 직접 만들기 (스톡 이미지 필요 없음)
+4. **연구 자료 분석**: 오래된 문서 사진 → 텍스트 변환 → 분석
+5. **드립·밈 만들기**: Imagen으로 웃긴 상황 이미지 → 친구들과 공유
 
 ## 이번 주 과제
 
-1. `prompts.py`에 여러분만의 페르소나를 하나 추가해 총 4개로 만드세요. 예: 격려 코치, 극단적 존댓말 로봇, 랩퍼, 우주선 캡틴 등.
-2. 각 페르소나에 대해 3개 이상의 few-shot 예시를 포함하세요.
-3. 페르소나마다 어울리는 temperature를 다르게 설정하세요. (사실형은 낮게, 창의형은 높게)
-4. **선택 도전**: 사이드바에 "이 페르소나에게 편지 쓰기" 버튼을 만들고, 클릭하면 챗봇이 자기 소개를 하도록 만들어보세요.
+1. **여행 사진 캡션 전문가** 저장 & 공유 URL 발급.
+2. 여러분의 여행 사진 3장을 업로드해서 캡션 뽑아보기. 결과 스크린샷.
+3. 영수증 정보 뽑기 실습 1회.
+4. **Imagen으로 다음 세 개 이미지 생성**:
+   - 여러분이 상상하는 이상적인 카페 인테리어
+   - 좋아하는 캐릭터가 나오는 상상 장면
+   - 자기소개 아바타 이미지
+5. 생성한 이미지 중 마음에 드는 것 하나 저장 (다운로드 아이콘).
 
 ## 다음 주 예고
 
-Week 4는 진짜 실용적인 영역으로 진입합니다. **PDF 파일을 업로드하면 그 내용을 바탕으로 질문에 답해주는 앱**을 만들어요. 논문 읽을 때, 계약서 검토할 때, 시험 공부할 때 유용합니다.
+Week 4에서는 **AI가 답을 자동으로 표·목록·JSON으로 정리**하게 만듭니다. 지금까지는 AI 답변이 자유로운 문장이었죠? 다음 주엔:
 
-이때 등장하는 개념이 **RAG(Retrieval-Augmented Generation)**입니다. 어려운 이름이지만 개념은 아주 단순해요. 다음 주에 봐요!
+- 영수증 5장 → 자동으로 지출 표로 정리
+- 뉴스 기사 → 요약·키워드·카테고리 자동 분류
+- 이력서 → 학력·경력·기술 자동 정리
+
+**Structured Output**이라는 기능을 씁니다. AI Studio의 마우스 클릭 몇 번으로 완성돼요.
 
 <LessonNav slug="week-3" />

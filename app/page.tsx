@@ -24,9 +24,9 @@ export default function Home() {
                 </span>
               </h1>
               <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-600 dark:text-slate-400">
-                코딩 한 줄 안 짜본 사람도 8주면 챗봇·문서 QA·이미지 이해·에이전트 앱을
-                직접 만들어 공개 URL로 배포합니다. 필요한 건 노트북, Gemini API 키,
-                그리고 이 강의뿐입니다.
+                <strong>파이썬 몰라도 OK. 터미널 몰라도 OK.</strong> 브라우저에서
+                <strong> AI에게 부탁만 하면</strong> 챗봇·문서 도우미·이미지 앱이 완성됩니다.
+                Google AI Studio + v0.dev, 두 개의 마법 도구만 씁니다.
               </p>
               <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
                 <Link
@@ -44,16 +44,16 @@ export default function Home() {
               </div>
               <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-slate-600 dark:text-slate-400">
                 <span className="inline-flex items-center gap-2">
-                  <span className="text-lg">🐍</span> Python 기초부터
+                  <span className="text-lg">🚫</span> 설치 없음
                 </span>
                 <span className="inline-flex items-center gap-2">
-                  <span className="text-lg">✨</span> Gemini API 활용
+                  <span className="text-lg">💬</span> 말로 부탁하면 완성
                 </span>
                 <span className="inline-flex items-center gap-2">
-                  <span className="text-lg">🌐</span> Streamlit 웹앱
+                  <span className="text-lg">🌐</span> 브라우저만 있으면 OK
                 </span>
                 <span className="inline-flex items-center gap-2">
-                  <span className="text-lg">🚀</span> 무료 배포까지
+                  <span className="text-lg">🚀</span> 원클릭 무료 배포
                 </span>
               </div>
             </div>
@@ -69,19 +69,19 @@ export default function Home() {
             <div className="mt-12 grid gap-6 sm:grid-cols-3">
               {[
                 {
-                  emoji: "🎯",
-                  title: "따라만 해도 완성",
-                  body: "모든 명령어와 코드가 그대로 복사·실행 가능합니다. 이해가 안 돼도 우선 만들어보세요.",
+                  emoji: "🖱️",
+                  title: "설치할 것 없음",
+                  body: "모든 실습을 브라우저에서 진행합니다. VS Code, 파이썬, 터미널 전부 필요 없어요.",
                 },
                 {
-                  emoji: "💡",
-                  title: "왜 이렇게 하는지",
-                  body: "명령어만 던지지 않습니다. 각 단계가 왜 필요한지 초보자 눈높이로 설명합니다.",
+                  emoji: "🗣️",
+                  title: "말로 부탁만 하면 끝",
+                  body: "'이런 앱 만들어줘'라고 한국어로 부탁하면 진짜 웹앱이 만들어집니다. AI가 모든 코드를 대신 짜줍니다.",
                 },
                 {
-                  emoji: "🛟",
-                  title: "막힐 때 대비",
-                  body: "매 주차마다 자주 발생하는 오류와 해결법을 미리 준비했습니다.",
+                  emoji: "🔗",
+                  title: "완성 즉시 공유",
+                  body: "매 주차마다 https://... 공개 URL이 발급됩니다. 친구·부모님·교수님께 자랑하세요.",
                 },
               ].map((f) => (
                 <div
@@ -137,14 +137,52 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Tools section */}
+        <section className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30 py-20">
+          <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+            <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              이 두 개만 씁니다
+            </h2>
+            <div className="mt-12 grid gap-6 md:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8">
+                <div className="mb-3 text-4xl">🎨</div>
+                <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-slate-100">
+                  Google AI Studio
+                </h3>
+                <p className="mb-3 text-sm text-purple-600 dark:text-purple-400 font-medium">
+                  Weeks 1~4 · aistudio.google.com
+                </p>
+                <p className="text-slate-600 dark:text-slate-400">
+                  구글이 만든 Gemini AI 놀이터입니다. 프롬프트만 짜면 AI가 어떻게 답할지
+                  즉시 확인하고, 만든 프롬프트를 공유 URL로 발급받을 수 있어요.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8">
+                <div className="mb-3 text-4xl">✨</div>
+                <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-slate-100">
+                  v0.dev
+                </h3>
+                <p className="mb-3 text-sm text-purple-600 dark:text-purple-400 font-medium">
+                  Weeks 5~8 · v0.dev
+                </p>
+                <p className="text-slate-600 dark:text-slate-400">
+                  &ldquo;영수증 정리 앱 만들어줘&rdquo;라고 부탁하면 진짜 웹앱을 만들어줍니다.
+                  대화하면서 계속 수정할 수 있고, 완성되면 원클릭으로 인터넷에 공개돼요.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* CTA */}
         <section className="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 py-20">
           <div className="mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
             <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              준비물은 노트북 하나면 충분합니다
+              준비물은 노트북과 마음가짐뿐
             </h2>
             <p className="mt-4 text-slate-600 dark:text-slate-400">
-              Windows/Mac 모두 OK. 사양은 문서 작업 되는 정도면 충분해요.
+              Windows/Mac 무관. 문서 작업 되는 정도의 노트북이면 충분해요.<br />
+              Chrome이나 Edge 같은 최신 브라우저만 있으면 시작할 수 있습니다.
             </p>
             <Link
               href="/lessons/week-1"

@@ -3,434 +3,273 @@ import { LessonNav } from "@/components/lesson-nav";
 
 <LessonHeader slug="week-7" />
 
-## 이번 주에 만들 것
+## 이번 주에 할 일
 
-AI가 스스로 판단해서 **필요한 도구를 골라 쓰는 챗봇**을 만듭니다.
+Week 6에 만든 챗봇은 텍스트만 주고받았죠. 이번 주엔 진짜 실용적인 기능들을 붙입니다:
 
-- "128 × 47은?" → 계산기 도구 사용 → 정확한 결과
-- "지금 몇 시야?" → 시계 도구 사용 → 현재 시각
-- "최근 애플 실적 뉴스" → 웹 검색 도구 → 최신 정보
-- "안녕! 오늘 기분 어때?" → 도구 없이 그냥 대화
+1. 📄 **PDF 업로드** → PDF와 대화하는 앱
+2. 🖼️ **이미지 업로드** → 사진 이해하는 앱
+3. 🌐 **웹 검색** → 최신 정보 답변
 
-**같은 챗봇**이 상황에 맞게 다르게 행동합니다. 이걸 **에이전트(agent)**라고 부릅니다.
+Week 6 앱에 이어서 대화로 확장할 수도 있고, 새 앱으로 만들 수도 있어요. 이번 주는 **원하는 것 하나만** 골라서 완성도 있게 만드는 걸 권장합니다.
 
-## 왜 도구가 필요한가요?
+## 접근 방식
 
-지난주까지 만든 챗봇들의 세 가지 약점:
+이번 주는 이전 주들처럼 세세히 알려주지 않아요. 대신 **좋은 프롬프트 예시**를 드립니다. 그대로 복사해서 시도해보고, 결과에 따라 대화로 수정하세요.
 
-1. **최신 정보를 모름** — Gemini는 학습 데이터 시점(2025년쯤) 이후 뉴스를 모릅니다.
-2. **정확한 계산이 약함** — LLM은 "125 × 8 = 1000"을 틀리게 답할 수 있어요.
-3. **실제 행동을 못함** — 파일 저장, 이메일 발송 같은 걸 못합니다.
+**핵심 원칙**: v0에게 뭘 만들지 명확히 설명하되, 여러분이 원하는 최종 사용자 경험을 상세히 그려주세요.
 
-이걸 해결하는 방법이 **도구(tool) 제공**입니다.
+## 옵션 1: PDF 대화 앱 만들기 📄
 
-## Function Calling — 개념
+교과서·논문·계약서 PDF를 올리면, 그 내용을 근거로 답해주는 앱.
 
-Gemini는 여러분이 만든 파이썬 함수를 **호출할 능력**이 있어요. 원리는 이렇습니다:
+### 시작 프롬프트
+
+<a href="https://v0.dev" target="_blank">v0.dev</a> **+ New Chat**:
 
 ```
-[사용자] "128 × 47은?"
-    ↓
-[AI 판단] "이건 계산이 필요해. calculator 도구를 써야겠다."
-    ↓
-[AI가 함수 호출 요청] calculator(expression="128 * 47")
-    ↓
-[우리 코드가 실제 함수 실행] → 결과: 6016
-    ↓
-[결과를 AI에 전달]
-    ↓
-[AI 최종 답변] "128 × 47은 6016입니다."
+PDF와 대화하는 웹앱을 만들어줘.
+
+기능:
+1. 화면 상단에 큰 파일 드롭 영역. PDF 파일을 드래그하거나 클릭해서 업로드.
+2. 업로드된 PDF는 자동으로 텍스트로 변환되어 대화 컨텍스트에 포함.
+3. 하단에 채팅창. 사용자가 PDF 내용에 대해 질문하면 AI가 답변.
+4. 답변은 반드시 PDF 내용에 근거. 답을 모르면 "이 문서에서 찾을 수 없어요"라고 답변.
+5. 각 답변 하단에 "이 정보의 근거 부분 보기" 접힌 영역 (참고한 원문 표시).
+6. 새 PDF 업로드 시 대화 초기화.
+
+디자인:
+- 학술 논문 리더 느낌의 클래식한 톤.
+- 크림 배경, 짙은 남색 포인트.
+- 세리프 폰트.
+
+기술:
+- Next.js App Router.
+- Gemini API (모델: gemini-2.5-flash, 환경변수 GEMINI_API_KEY).
+- PDF 파싱은 pdf-parse 라이브러리 또는 유사한 것 사용.
+- 대용량 PDF 대응: 텍스트가 너무 길면 앞 100,000자만 사용.
+- 시스템 프롬프트: "당신은 사용자가 업로드한 PDF 내용을 근거로 답변하는 도우미. 
+  근거 없는 추측 금지. 답변 뒤에 참고한 원문 스니펫을 별도 필드로 리턴."
 ```
 
-여러분이 할 일: **함수를 잘 정의하고 이름·설명을 명확히** 붙이는 것. 나머지는 Gemini가 알아서 판단합니다.
+**Generate** → 결과 확인 → API 키 설정 → 배포.
 
-## Step 1. 첫 도구 사용 — 계산기
+### 개선 대화 예시
 
-새 파일 **`agent_test.py`**:
-
-```python filename="agent_test.py"
-import os
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
-
-load_dotenv()
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-
-# --- 도구 함수 정의 ---
-def calculator(expression: str) -> str:
-    """
-    수학 계산을 수행합니다.
-    Args:
-        expression: 계산할 수식. 예: "128 * 47", "sqrt(144)", "sin(pi/2)"
-    Returns:
-        계산 결과를 문자열로.
-    """
-    import math
-    # 안전한 이름공간에서 계산
-    allowed = {"sqrt": math.sqrt, "sin": math.sin, "cos": math.cos,
-               "pi": math.pi, "log": math.log, "exp": math.exp}
-    try:
-        result = eval(expression, {"__builtins__": {}}, allowed)
-        return str(result)
-    except Exception as e:
-        return f"계산 오류: {e}"
-
-# --- Gemini에게 도구 등록 ---
-tools = [calculator]
-
-# --- 대화 ---
-response = client.models.generate_content(
-    model="gemini-2.5-flash",
-    contents="128 곱하기 47이 얼마야?",
-    config=types.GenerateContentConfig(tools=tools),
-)
-
-print(response.text)
+```
+답변에 '근거' 스니펫이 원문 그대로 나와야 하는데 
+지금은 요약된 문장이 나와. 원문 그대로 뽑아오게 수정해줘.
 ```
 
-실행:
-
-```bash
-python agent_test.py
+```
+PDF가 여러 페이지일 때 페이지 번호도 함께 표시되게 해줘. 
+"3페이지 참고" 같은 식으로.
 ```
 
-AI가 자동으로 `calculator` 함수를 호출해서 답을 냅니다.
-
-### 핵심 포인트
-
-- **함수 시그니처가 곧 명세**: `expression: str`이라는 타입 힌트로 Gemini는 "문자열을 넣어야 하는구나"를 이해합니다.
-- **Docstring이 곧 설명서**: `"""수학 계산을 수행합니다. Args: ..."""` 부분을 Gemini가 읽고 언제 이 함수를 써야 하는지 판단합니다.
-- **명확할수록 잘 씁니다**: 함수 이름과 docstring을 대충 쓰면 Gemini도 대충 씁니다.
-
-## Step 2. 여러 도구 등록하기
-
-한 챗봇에 도구를 여러 개 붙일 수 있어요. **`multi_tool.py`**:
-
-```python filename="multi_tool.py"
-import os
-from datetime import datetime
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
-
-load_dotenv()
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-
-# --- 도구 1: 계산기 ---
-def calculator(expression: str) -> str:
-    """
-    수학 계산을 수행합니다. +, -, *, /, **, sqrt, sin, cos, pi, log, exp 지원.
-    Args:
-        expression: 파이썬 수식 문자열. 예: "128 * 47", "sqrt(2) * 100"
-    """
-    import math
-    allowed = {"sqrt": math.sqrt, "sin": math.sin, "cos": math.cos,
-               "pi": math.pi, "log": math.log, "exp": math.exp}
-    try:
-        return str(eval(expression, {"__builtins__": {}}, allowed))
-    except Exception as e:
-        return f"계산 오류: {e}"
-
-# --- 도구 2: 현재 시각 ---
-def get_current_time() -> str:
-    """
-    현재 한국 시간을 YYYY-MM-DD HH:MM:SS 형식으로 리턴합니다.
-    "지금 몇 시야?", "오늘 며칠?" 같은 시간·날짜 질문에 사용하세요.
-    """
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-# --- 도구 3: 한국어 → 로마자 변환 ---
-def korean_to_romanization(text: str) -> str:
-    """
-    한국어를 대략적인 로마자 표기로 변환합니다.
-    Args:
-        text: 로마자로 바꿀 한국어 문자열
-    """
-    # 간단한 예시 — 실제로는 정교한 라이브러리를 써야 함
-    mapping = {"안녕": "Annyeong", "하세요": "haseyo", "감사": "Gamsa"}
-    for k, v in mapping.items():
-        text = text.replace(k, v)
-    return text
-
-# --- 도구 등록 ---
-tools = [calculator, get_current_time, korean_to_romanization]
-
-# --- 자유 대화 테스트 ---
-질문들 = [
-    "128 × 47이 얼마야?",
-    "지금 몇 시야?",
-    "안녕하세요를 로마자로 어떻게 써?",
-    "고마워!",  # 도구 없이 그냥 대화
-]
-
-for 질문 in 질문들:
-    print(f"\n👉 {질문}")
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=질문,
-        config=types.GenerateContentConfig(tools=tools),
-    )
-    print(f"🤖 {response.text}")
+```
+답변 중에도 계속 새 질문을 입력할 수 있게 
+채팅창을 항상 활성 상태로 유지해줘.
 ```
 
-실행하면 AI가 질문마다 다른 도구를 (또는 아무 도구도 안) 쓰는 걸 볼 수 있어요.
+## 옵션 2: 이미지 이해 앱 📷
 
-## Step 3. 웹 검색 도구 (Google Search Grounding)
+사진을 올리면 AI가 이해하고 답변하는 앱.
 
-Gemini는 **Google 검색을 내장**하고 있어요. 별도 라이브러리 없이 최신 정보를 가져올 수 있습니다.
+### 시작 프롬프트
 
-```python filename="web_search.py"
-import os
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+```
+이미지를 이해하는 챗봇 웹앱.
 
-load_dotenv()
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+기능:
+1. 채팅 UI 하단에 이미지 첨부 버튼 (클립 아이콘).
+2. 이미지를 첨부한 뒤 텍스트 질문을 함께 전송하면, 
+   AI가 이미지와 텍스트를 함께 이해해서 답변.
+3. 첨부한 이미지는 채팅창에 미리보기로 표시 (사용자 메시지 안에).
+4. 이미지 없이 텍스트만 보내도 일반 대화 가능.
+5. 여러 이미지를 한 메시지에 첨부 가능.
 
-# 도구로 GoogleSearch 등록
-response = client.models.generate_content(
-    model="gemini-2.5-flash",
-    contents="애플의 최근 실적 발표 내용 알려줘",
-    config=types.GenerateContentConfig(
-        tools=[types.Tool(google_search=types.GoogleSearch())],
-    ),
-)
+사용 케이스 예시:
+- 옷장 사진 첨부 + "오늘 소개팅인데 뭐 입을까?" → 코디 추천
+- 냉장고 사진 + "이걸로 뭐 만들지?" → 레시피 추천
+- 여행 사진 + "인스타 캡션 짜줘" → 감성 캡션 3개
 
-print(response.text)
+디자인:
+- 캐주얼하고 밝은 톤.
+- 이미지가 강조되도록 파스텔 배경.
+- 채팅 말풍선 안에 이미지가 자연스럽게 배치.
 
-# 출처 링크 확인
-if response.candidates[0].grounding_metadata:
-    print("\n📎 참고한 출처:")
-    for chunk in response.candidates[0].grounding_metadata.grounding_chunks or []:
-        print(f"- {chunk.web.title}: {chunk.web.uri}")
+기술:
+- Next.js App Router.
+- Gemini 2.5 Flash (멀티모달 지원).
+- 이미지는 base64로 인코딩해서 API에 전달.
+- 파일 크기 제한: 각 이미지 5MB 이하.
+- GEMINI_API_KEY 환경변수.
+- 시스템 프롬프트는 없이 시작. 자유롭게 대화하되 사진 속 실제 요소를 근거로 답변.
 ```
 
-**놀랍죠?** 별도 라이브러리 하나 없이 최신 뉴스 검색이 돼요.
+### 확장 예시
 
-## Step 4. 통합 에이전트 앱
+- `"이미지가 여러 장이면 몇 번째 사진에 대한 답인지 명시하게 해줘."`
+- `"음식 사진이면 자동으로 칼로리 추정치를 알려주는 모드 추가."`
+- `"영수증 사진이면 자동으로 표로 정리하는 모드 (Week 4 스타일)."`
 
-이제 모든 걸 합칩시다. Streamlit + 여러 도구 + 웹 검색이 통합된 진짜 에이전트를. **`agent_chatbot.py`**:
+## 옵션 3: 웹 검색 챗봇 🌐
 
-```python filename="agent_chatbot.py"
-import os
-from datetime import datetime
-import streamlit as st
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+지금 시점 정보를 답할 수 있는 챗봇 (Gemini의 Google Search grounding 사용).
 
-load_dotenv()
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+### 시작 프롬프트
 
-st.title("🤖 도구를 쓰는 AI 에이전트")
-st.caption("계산, 시간 확인, 웹 검색을 스스로 골라서 처리합니다.")
+```
+실시간 웹 검색 기능이 있는 챗봇 웹앱.
 
-# --- 도구 함수들 ---
-def calculator(expression: str) -> str:
-    """수학 계산. sqrt, sin, cos, pi, log 지원."""
-    import math
-    allowed = {"sqrt": math.sqrt, "sin": math.sin, "cos": math.cos,
-               "pi": math.pi, "log": math.log, "exp": math.exp}
-    try:
-        return str(eval(expression, {"__builtins__": {}}, allowed))
-    except Exception as e:
-        return f"오류: {e}"
+기능:
+1. 일반 챗봇 UI.
+2. AI가 답변할 때 최신 정보가 필요하면 자동으로 Google 검색.
+3. 검색 결과를 근거로 답변하고, 답변 하단에 "참고 링크" 목록 표시.
+4. 검색이 사용된 경우 답변 옆에 🌐 아이콘 표시.
 
-def get_current_time() -> str:
-    """현재 한국 시각과 날짜를 YYYY-MM-DD HH:MM:SS 형식으로 리턴."""
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S (%A)")
+기술 요구사항:
+- Next.js App Router.
+- Gemini 2.5 Flash + Google Search grounding 사용.
+- API 호출 시 config에 
+  tools: [{ googleSearch: {} }] 
+  형태로 설정.
+- 답변 응답에서 grounding_metadata의 grounding_chunks를 파싱해서 
+  참고 URL 리스트 추출.
 
-def save_note(title: str, content: str) -> str:
-    """
-    메모를 notes.md 파일에 저장합니다.
-    Args:
-        title: 메모 제목
-        content: 메모 본문
-    """
-    with open("notes.md", "a", encoding="utf-8") as f:
-        f.write(f"\n## {title} ({datetime.now():%Y-%m-%d %H:%M})\n{content}\n")
-    return f"'{title}' 메모가 notes.md에 저장되었습니다."
+사용자 예시 질문:
+- "오늘 서울 날씨 어때?"
+- "이번 주 개봉 영화 뭐 있어?"
+- "요즘 주식 시장 이슈"
+- "최근 애플 신제품 뉴스"
 
-# 파이썬 함수 도구 목록
-python_tools = [calculator, get_current_time, save_note]
-
-# 사이드바에 도구 목록 표시
-with st.sidebar:
-    st.header("🧰 사용 가능한 도구")
-    st.markdown("""
-- 🧮 **calculator** — 수학 계산
-- 🕐 **get_current_time** — 현재 시각
-- 📝 **save_note** — 메모 저장
-- 🌐 **google_search** — 웹 검색
-""")
-
-    use_search = st.checkbox("🌐 웹 검색 활성화", value=True)
-
-    if st.button("🗑️ 대화 초기화"):
-        st.session_state.messages = []
-        st.rerun()
-
-# 대화 기록 초기화
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# 지난 대화 표시
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
-        # 도구 사용 기록이 있으면 접힌 영역에 표시
-        if msg.get("tool_uses"):
-            with st.expander(f"🔧 사용한 도구 {len(msg['tool_uses'])}개"):
-                for tool_use in msg["tool_uses"]:
-                    st.code(f"{tool_use}", language="python")
-
-user_input = st.chat_input("무엇이든 물어보세요...")
-
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.write(user_input)
-
-    with st.chat_message("assistant"):
-        with st.spinner("생각하고 있어요..."):
-            # 대화 히스토리 준비
-            history = [
-                types.Content(
-                    role="user" if m["role"] == "user" else "model",
-                    parts=[types.Part(text=m["content"])],
-                )
-                for m in st.session_state.messages
-            ]
-
-            # 도구 목록 조립
-            tools = list(python_tools)
-            if use_search:
-                tools.append(types.Tool(google_search=types.GoogleSearch()))
-
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=history,
-                config=types.GenerateContentConfig(tools=tools),
-            )
-            answer = response.text
-            st.write(answer)
-
-            # 검색을 사용한 경우 출처 표시
-            grounding = response.candidates[0].grounding_metadata if response.candidates else None
-            if grounding and grounding.grounding_chunks:
-                with st.expander(f"📎 참고한 웹 페이지 {len(grounding.grounding_chunks)}개"):
-                    for chunk in grounding.grounding_chunks:
-                        if chunk.web:
-                            st.markdown(f"- [{chunk.web.title}]({chunk.web.uri})")
-
-    st.session_state.messages.append({"role": "assistant", "content": answer})
+디자인:
+- 뉴스 리더 느낌.
+- 깔끔한 화이트 배경, 파란 링크 포인트.
+- 참고 링크는 카드 형태로 (제목 + URL 미리보기).
 ```
 
-실행:
+### 확장 예시
 
-```bash
-streamlit run agent_chatbot.py
+- `"검색 결과의 신뢰도(뉴스/블로그/공식) 배지를 추가."`
+- `"답변에 인용 번호 [1], [2]를 표시하고 하단 참고 목록과 연결."`
+- `"주제별 필터: 뉴스만, 학술만, 쇼핑만 검색하도록 사이드바 옵션."`
+
+## Step 4. 공통 개선 팁
+
+어떤 옵션을 골랐든, 완성도를 높이는 공통 요령.
+
+### 팁 1. 로딩 상태 자세히
+
+```
+"AI가 응답하는 동안 로딩 애니메이션에 
+'검색 중...', '문서 분석 중...', '이미지 이해 중...' 
+같은 진행 단계 텍스트를 순차 표시해줘."
 ```
 
-## Step 5. 다양한 질문 던져보기
+### 팁 2. 에러 처리 친절하게
 
-에이전트를 다양하게 시험해보세요:
-
-- 🧮 "루트 2 곱하기 100은?" → 계산기 자동 사용
-- 🕐 "지금 몇 시야?" → 시간 도구 자동 사용
-- 🌐 "오늘 코스피 지수는?" → 웹 검색 자동 사용
-- 📝 "'파이썬 공부'라는 제목으로 '오늘 함수 호출 배움'을 메모로 저장해줘" → 메모 저장 도구 자동 사용
-- 💬 "너는 뭐 할 줄 알아?" → 도구 없이 자기 소개
-- 🎯 "지금 서울 날씨 알아보고, 우산 필요한지 알려줘" → **웹 검색 + 판단**
-
-마지막 예시가 진짜 놀라운 순간입니다. AI가 스스로:
-1. 웹 검색으로 날씨 정보 가져와서
-2. 판단해서 우산 필요 여부 답변
-
-이런 걸 **에이전트적 행동(agentic behavior)**이라고 부릅니다.
-
-## Step 6. 도구 정의 잘 쓰는 팁
-
-Gemini가 언제 어떤 도구를 쓸지 결정하는 것은 100% **함수 이름 + docstring + 파라미터 타입**에 달려 있어요.
-
-### 좋은 예 vs 나쁜 예
-
-❌ **나쁜 예**:
-```python
-def calc(x):
-    """계산."""
-    ...
 ```
-- 이름이 모호함
-- docstring이 너무 짧음
-- 파라미터 타입 없음
-
-✅ **좋은 예**:
-```python
-def calculator(expression: str) -> str:
-    """
-    수학 계산을 정확히 수행합니다. AI가 큰 수의 곱셈이나
-    복잡한 수식을 다룰 때 사용하세요.
-    
-    Args:
-        expression: 계산할 파이썬 수식 문자열.
-                   지원: +, -, *, /, **, sqrt(), sin(), cos(), pi
-                   예: "128 * 47", "sqrt(2)"
-    Returns:
-        계산 결과를 문자열로.
-    """
-    ...
+"API 호출이 실패했을 때 
+'죄송해요, 지금 AI가 살짝 바빠요. 잠시 후 다시 시도해주세요' 
+같은 친절한 메시지 + 재시도 버튼."
 ```
 
-### 명확한 이름 + 상세 설명 = 정확한 도구 선택
+### 팁 3. 대화 다운로드
 
-## 자주 발생하는 오류
+```
+"우측 상단에 '대화 저장' 버튼. 
+누르면 지금까지의 대화를 마크다운 파일로 다운로드."
+```
 
-### ❌ AI가 도구를 안 쓰고 스스로 계산하려 함 (틀린 답)
+### 팁 4. 다크모드
 
-**원인**: 도구 설명이 모호하거나, AI가 자기가 답할 수 있다고 판단.
+```
+"우측 상단에 다크모드 토글. 
+localStorage로 선택 기억하기."
+```
 
-**해결**: 
-1. Docstring을 더 명확히. "AI는 큰 수 계산이 부정확하므로 항상 이 도구를 사용해야 합니다"처럼 강조.
-2. 시스템 프롬프트에 규칙 명시: "숫자 계산은 반드시 calculator 도구를 사용한다."
+### 팁 5. 공유 링크
 
-### ❌ `TypeError: Tool schema ...`
+```
+"대화 스크린샷을 URL로 공유하는 기능. 
+현재 대화를 서버에 저장하고, 
+공유 가능한 짧은 URL 생성 (예: /share/abc123)."
+```
 
-**원인**: 함수의 타입 힌트가 잘못됨.
+## Step 5. v0에게 계속 부탁하는 마인드셋
 
-**해결**: 모든 파라미터에 `str`, `int`, `float`, `bool`, `list`, `dict` 같은 기본 타입 힌트를 명시.
+이번 주에 배우는 진짜 핵심은 **"AI에게 원하는 걸 정확히 설명하는 능력"**입니다.
 
-### ❌ Google Search가 아무것도 못 찾음
+이걸 잘하는 요령:
 
-**원인**: Grounding이 활성화되지 않은 계정. 유료 요금제여야 사용 가능한 경우 있음.
+### 요령 1. "사용자 경험"부터 그려라
 
-**해결**: Google Cloud Console에서 Vertex AI Search API 활성화. 유료 요금제 확인.
+- ❌ "PDF 파싱 라이브러리 붙여줘"
+- ✅ "사용자가 파일을 드래그하면 잠시 로딩 후 대화창이 활성화되어 '이 문서에 대해 물어보세요' 표시"
 
-### ❌ 도구를 여러 번 호출하다가 무한 루프
+### 요령 2. 예시를 곁들여라
 
-**원인**: 도구 실행 결과가 매번 이상해서 AI가 계속 재시도.
+- ❌ "이미지 업로드 기능 추가"
+- ✅ "이미지 업로드 기능 추가. 예시 시나리오: 사용자가 옷장 사진 + '오늘 뭐 입지'라고 물으면 코디 추천"
 
-**해결**: 도구 함수에서 예외 처리를 잘 하고, 실패 시 명확한 오류 메시지 리턴.
+### 요령 3. 원하는 스타일을 언급
+
+- ❌ "예쁘게 만들어"
+- ✅ "토스 앱처럼 깔끔하고, 애플 홈페이지처럼 여백 많게"
+
+### 요령 4. 안 되면 원인 물어보기
+
+앱이 잘 안 돌면 v0에게 직접:
+
+```
+"이 화면이 안 뜨는데 왜 그런지 알아? 오류 로그 좀 보여줘. 
+그리고 원인 파악해서 수정해줘."
+```
+
+v0가 자체 디버깅을 해줍니다.
 
 ## 이번 주 과제
 
-1. 여러분만의 도구 함수 하나를 추가하세요. 예:
-   - 랜덤 로또 번호 생성기
-   - 두 통화 환율 계산 (환율은 하드코딩 OK)
-   - 파일 내용 읽기 도구
-2. 시스템 프롬프트를 추가해서 에이전트에게 성격을 부여하세요.
-3. **선택 도전**: 요리 어시스턴트를 만드세요. 도구:
-   - 재료로 요리 검색 (Google Search)
-   - 요리 시간 타이머
-   - 레시피를 파일로 저장
-4. **초 도전**: 도구 실행 로그(어떤 도구가 언제 호출되었는지)를 화면에 실시간 표시하세요.
+1. **옵션 1, 2, 3 중 하나를 골라 완성**하세요. URL 제출.
+2. 시작 프롬프트 그대로가 아니라, **최소 5번 이상의 대화로 개선**하세요. 
+   개선 이력 스크린샷.
+3. 완성된 앱에서 **실제 사용 사례 3개** 시연 (스크린샷).
+4. **선택 도전**: 옵션 두 개 이상을 조합 (예: PDF + 이미지 모두 업로드 가능한 만능 챗봇).
+
+## 자주 발생하는 상황
+
+### ❓ 배포 후 특정 기능만 안 됨 (로컬은 됨)
+
+**원인**: 환경변수가 프로덕션 배포에 반영 안 됨, 또는 서버리스 함수 타임아웃.
+
+**해결**: 
+1. Vercel Dashboard → Env Vars 재확인.
+2. v0에게: `"프로덕션 배포에서 timeout 오류가 나요. 응답 시간이 긴 요청은 스트리밍으로 바꾸거나 
+   maxDuration을 30초 이상으로 설정해줘."`
+
+### ❓ 답변이 너무 길거나 짧음
+
+**해결**: 시스템 프롬프트에 길이 지침:
+```
+"모든 답변은 최소 3문장, 최대 10문장. 
+너무 길어질 것 같으면 하이라이트 먼저 3문장, 
+그 다음 '더 자세히 알려드릴까요?' 물어봄."
+```
+
+### ❓ 페르소나가 대화 도중 흐트러짐
+
+**해결**: 위 Week 6과 동일 — 매 요청에 시스템 프롬프트 항상 포함.
 
 ## 다음 주 예고
 
-마지막 주! Week 8에서는 지금까지 만든 앱들을 **인터넷에 무료로 배포**합니다. **Streamlit Community Cloud**를 이용하면 여러분의 앱을 전 세계 누구나 접속할 수 있는 URL로 만들 수 있어요.
+마지막 주! Week 8은 **최종 프로젝트**입니다.
 
-그리고 **여러분만의 최종 프로젝트**를 시작합니다. 8주간 배운 걸 조합해 정말 여러분에게 필요한 앱 하나를 만드세요. 🚀
+- 8주간 배운 것을 조합해 여러분만의 앱 완성.
+- 커스텀 도메인 연결 (선택).
+- 프로젝트 발표용 회고문 작성.
+- 학과·동아리·부모님 대상 데모.
+
+**여러분이 진짜로 필요한 문제를 하나 골라, AI 앱으로 해결해보세요.** 이번엔 강의가 아니라 자유 프로젝트입니다.
 
 <LessonNav slug="week-7" />

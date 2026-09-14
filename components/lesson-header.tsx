@@ -8,9 +8,12 @@ export function LessonHeader({ slug }: { slug: string }) {
 
   return (
     <div className="mb-10 border-b border-slate-200 dark:border-slate-800 pb-8">
-      <div className="mb-3 flex items-center gap-3 text-sm">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
         <span className="rounded-full bg-blue-100 dark:bg-blue-950 px-3 py-1 font-semibold text-blue-700 dark:text-blue-300">
           Week {lesson.week}
+        </span>
+        <span className="rounded-full bg-purple-100 dark:bg-purple-950 px-3 py-1 font-medium text-purple-700 dark:text-purple-300">
+          🧰 {lesson.tool}
         </span>
         <span className="text-slate-500 dark:text-slate-400">난이도 {stars}</span>
         <span className="text-slate-500 dark:text-slate-400">·</span>
