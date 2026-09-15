@@ -6,43 +6,43 @@ import { lessons } from "@/lib/lessons";
 
 const highlights = [
   {
-    emoji: "🖱️",
-    title: "설치 없이 브라우저에서",
-    body: "파이썬·터미널·에디터 다 필요 없어요. Chrome이나 Edge만 있으면 바로 시작할 수 있습니다.",
+    emoji: "🧭",
+    title: "개발자처럼 일하기",
+    body: "실제 팀이 프로덕트를 만드는 순서(기획 → 설계 → 개발 → 테스트 → 배포)를 그대로 따라합니다. 앱 하나를 넘어 방법론을 배웁니다.",
     gradient: "from-violet-500 to-fuchsia-500",
   },
   {
     emoji: "🗣️",
-    title: "말로 부탁하면 완성",
-    body: "“이런 기능 만들어줘” 하고 한국어로 부탁하면 Gemini가 대신 만듭니다. AI 시대의 코딩 방식.",
+    title: "코딩은 AI에게",
+    body: "여러분은 뭘 만들지·어떻게 보일지·잘 되는지 확인하는 데 집중. 실제 코드는 Google AI Studio Build가 대신 짜줍니다.",
     gradient: "from-pink-500 to-orange-400",
   },
   {
-    emoji: "🔗",
-    title: "완성 즉시 공유 URL",
-    body: "매 주차마다 공개 URL이 발급됩니다. 친구·부모님·교수님께 링크로 자랑하세요.",
+    emoji: "🚀",
+    title: "매 주 실제 배포",
+    body: "모든 주차의 결과물이 실제 URL로 배포됩니다. 마지막 주엔 커스텀 도메인까지 붙여 프로덕트로 마무리.",
     gradient: "from-orange-400 to-amber-500",
   },
 ];
 
 const tools = [
   {
-    name: "Google AI Studio",
-    weeks: "Weeks 1~8",
+    name: "Google AI Studio Build",
+    weeks: "Weeks 1·4~8",
     url: "aistudio.google.com",
     description:
-      "Gemini AI를 다루는 놀이터. 프롬프트 작성 → System Instructions → JSON·이미지·도구 사용까지 마우스 클릭만으로.",
+      "여러분이 설계한 화면과 요구사항을 프롬프트로 전달하면 실제 웹앱을 만들어주는 Gemini 기반 앱 빌더. 미리보기·수정·배포까지 브라우저 안에서.",
     accent: "from-violet-500 via-indigo-500 to-blue-500",
     icon: "🎨",
   },
   {
-    name: "CodePen",
-    weeks: "Weeks 7~8",
-    url: "codepen.io",
+    name: "Vercel / Analytics / Lighthouse",
+    weeks: "Weeks 7·8",
+    url: "vercel.com + Chrome DevTools",
     description:
-      "AI Studio에서 받은 코드를 붙여넣으면 즉시 웹페이지가 됩니다. 발급된 URL로 실제 앱을 세상에 공개.",
+      "커스텀 도메인 연결, Analytics로 방문자 통계, Lighthouse로 성능·접근성 검증. 개발자가 실무에서 쓰는 표준 도구들.",
     accent: "from-pink-500 via-rose-500 to-orange-400",
-    icon: "🖌️",
+    icon: "🚀",
   },
 ];
 
@@ -65,14 +65,14 @@ export default function Home() {
               </div>
 
               <h1 className="text-5xl font-extrabold tracking-tight text-[var(--foreground)] sm:text-7xl lg:text-[5.5rem]">
-                <span className="block">8주 만에 만드는</span>
-                <span className="mt-2 block gradient-text">나만의 AI 앱</span>
+                <span className="block">기획부터 배포까지</span>
+                <span className="mt-2 block gradient-text">웹앱 만들기 8주</span>
               </h1>
 
               <p className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-[var(--muted)] sm:text-xl">
-                파이썬 몰라도 OK, 터미널 몰라도 OK. 브라우저에서
-                <strong className="text-[var(--foreground)]"> AI에게 부탁만 하면</strong>
-                {" "}챗봇·문서 정리기·이미지 앱이 완성됩니다.
+                문과생도 8주면 <strong className="text-[var(--foreground)]">웹앱 개발 전 과정</strong>을 경험합니다.
+                기획서 · 와이어프레임 · AI Studio Build로 실제 개발 · QA · 커스텀 도메인 배포까지.
+                코딩은 AI가, 여러분은 프로덕트 메이커의 사고방식을.
               </p>
 
               <div className="mt-12 flex flex-wrap items-center justify-center gap-3">
@@ -105,10 +105,10 @@ export default function Home() {
 
               <MotionStagger className="mt-16 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 text-sm text-[var(--muted)]">
                 {[
-                  { icon: "🚫", label: "설치 없음" },
-                  { icon: "💬", label: "말로 부탁하면 완성" },
-                  { icon: "🌐", label: "브라우저만 있으면 OK" },
-                  { icon: "🚀", label: "원클릭 배포" },
+                  { icon: "🧭", label: "기획 · 설계" },
+                  { icon: "🛠", label: "AI Studio Build" },
+                  { icon: "🧪", label: "QA · 실사용자 테스트" },
+                  { icon: "🚀", label: "커스텀 도메인 배포" },
                 ].map((item) => (
                   <MotionItem
                     key={item.label}
@@ -131,10 +131,11 @@ export default function Home() {
                 왜 이 강의인가요
               </div>
               <h2 className="text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">
-                코딩 배우지 않고도
-                <br className="sm:hidden" />
-                <span className="gradient-text"> 진짜 앱</span>을 만듭니다
+                프로덕트 만드는 <span className="gradient-text">방법론</span>을 배웁니다
               </h2>
+              <p className="mt-4 text-[var(--muted)]">
+                8주 동안 만드는 앱 하나보다, 다음 앱도 스스로 만들 수 있는 능력이 남습니다.
+              </p>
             </MotionSection>
 
             <MotionStagger className="mt-16 grid gap-6 md:grid-cols-3">
@@ -167,10 +168,10 @@ export default function Home() {
                 8주 커리큘럼
               </div>
               <h2 className="text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">
-                한 주씩 <span className="gradient-text">차근차근</span>
+                기획부터 배포까지 <span className="gradient-text">6단계</span>
               </h2>
               <p className="mt-4 text-[var(--muted)]">
-                매주 새로운 앱을 하나씩 완성합니다. 지난 주에 만든 것을 발전시켜요.
+                오리엔테이션 → 기획 → 설계 → 개발 (3주) → 테스트 → 배포. 실무 그대로.
               </p>
             </MotionSection>
 
@@ -187,6 +188,9 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="min-w-0 flex-1">
+                      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-violet-600 dark:text-violet-400">
+                        {lesson.phase}
+                      </div>
                       <div className="mb-1 flex items-center gap-2">
                         <span className="text-lg">{lesson.emoji}</span>
                         <h3 className="text-base font-bold text-[var(--foreground)] group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">

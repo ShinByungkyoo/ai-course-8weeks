@@ -45,17 +45,17 @@ export function Sidebar() {
                     {String(lesson.week).padStart(2, "0")}
                   </span>
                   <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-600 dark:text-violet-400">
+                      {lesson.phase}
+                    </div>
                     <div
-                      className={`truncate font-medium ${
+                      className={`truncate text-[13px] font-medium ${
                         active
                           ? "text-[var(--foreground)]"
                           : "text-[var(--foreground)] group-hover:text-[var(--foreground)]"
                       }`}
                     >
                       {lesson.title}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
-                      <span>{lesson.tool}</span>
                     </div>
                   </div>
                 </div>
@@ -67,8 +67,8 @@ export function Sidebar() {
         <div className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="mb-2 text-xs font-semibold text-[var(--muted)]">TIP</div>
           <p className="text-xs leading-relaxed text-[var(--muted)]">
-            프롬프트는 오른쪽 위 <strong className="text-[var(--foreground)]">복사</strong>
-            버튼으로 즉시 복사할 수 있어요. Google AI Studio에 붙여넣기만 하면 됩니다.
+            코드 블록은 우측 상단 <strong className="text-[var(--foreground)]">복사</strong> 버튼으로
+            즉시 복사할 수 있어요. AI Studio Build 프롬프트 창에 붙여넣기만 하면 됩니다.
           </p>
         </div>
       </div>

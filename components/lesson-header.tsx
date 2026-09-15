@@ -14,6 +14,9 @@ export function LessonHeader({ slug }: { slug: string }) {
           <span className="opacity-80">WEEK</span>
           <span className="font-mono">{String(lesson.week).padStart(2, "0")}</span>
         </span>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/40 px-3 py-1 font-semibold text-violet-700 dark:text-violet-300">
+          {lesson.phase}
+        </span>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 font-medium text-[var(--muted)]">
           🧰 {lesson.tool}
         </span>
@@ -44,7 +47,7 @@ export function LessonHeader({ slug }: { slug: string }) {
           </div>
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-emerald-700 dark:text-emerald-400">
-              이번 주 목표
+              이번 주 결과물
             </div>
             <div className="mt-0.5 text-[15px] leading-relaxed text-[var(--foreground)]">
               {lesson.goal}

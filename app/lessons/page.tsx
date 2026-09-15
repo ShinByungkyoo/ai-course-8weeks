@@ -33,6 +33,9 @@ export default function LessonsIndex() {
                   </div>
                 </div>
                 <div className="min-w-0 flex-1">
+                  <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-violet-600 dark:text-violet-400">
+                    {lesson.phase}
+                  </div>
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <span className="text-lg">{lesson.emoji}</span>
                     <h2 className="text-lg font-bold text-[var(--foreground)] group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
