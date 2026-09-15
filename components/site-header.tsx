@@ -1,29 +1,54 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export function SiteHeader() {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+    <header
+      className={`sticky top-0 z-40 w-full transition-all duration-300 ${
+        scrolled
+          ? "bg-white/70 dark:bg-black/70 backdrop-blur-xl border-b border-[var(--border)]"
+          : "bg-transparent border-b border-transparent"
+      }`}
+    >
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100"
+          className="group flex items-center gap-2.5 font-semibold tracking-tight"
         >
-          <span className="text-xl">🤖</span>
-          <span className="hidden sm:inline">AI 앱 만들기 8주</span>
-          <span className="sm:hidden">AI 8주</span>
+          <span className="relative flex h-8 w-8 items-center justify-center rounded-lg">
+            <span className="absolute inset-0 rounded-lg bg-gradient-to-br from-violet-500 via-pink-500 to-orange-400 opacity-90 group-hover:opacity-100 transition-opacity" />
+            <span className="relative text-white text-sm font-bold">AI</span>
+          </span>
+          <span className="hidden sm:inline text-[15px]">문과생 AI 8주</span>
         </Link>
-        <nav className="flex items-center gap-6 text-sm font-medium">
+
+        <nav className="flex items-center gap-1 text-sm">
           <Link
             href="/lessons"
-            className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+            className="rounded-full px-4 py-1.5 font-medium text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-black/[.04] dark:hover:bg-white/[.06] transition-colors"
           >
             강의 목차
           </Link>
           <Link
             href="/lessons/week-1"
-            className="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700"
+            className="relative inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 font-semibold text-white overflow-hidden group"
           >
-            시작하기
+            <span className="absolute inset-0 bg-gradient-to-r from-violet-600 via-pink-500 to-orange-400 transition-transform duration-300 group-hover:scale-105" />
+            <span className="relative">시작하기</span>
+            <span className="relative transition-transform duration-200 group-hover:translate-x-0.5">
+              →
+            </span>
           </Link>
         </nav>
       </div>

@@ -1,31 +1,183 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.css");
 @import "tailwindcss";
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --font-sans: "Pretendard Variable", var(--font-geist-sans), -apple-system,
+    BlinkMacSystemFont, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo,
+    "Cascadia Code", monospace;
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;
+  --background: #fbfaf7;
+  --surface: #ffffff;
+  --foreground: #0a0a0a;
+  --muted: #737373;
+  --border: #e7e5e0;
+  --accent: #7c3aed;
+  --accent-soft: #f5f3ff;
+  --gradient-primary: linear-gradient(135deg, #7c3aed 0%, #ec4899 50%, #f97316 100%);
+  --gradient-soft: linear-gradient(135deg, #ede9fe 0%, #fce7f3 50%, #ffedd5 100%);
+  --shadow-sm: 0 1px 2px rgba(15, 15, 15, 0.04);
+  --shadow-md: 0 4px 16px rgba(15, 15, 15, 0.06);
+  --shadow-lg: 0 20px 40px -12px rgba(124, 58, 237, 0.15);
 }
 
-.dark {
+html.dark {
   --background: #0a0a0a;
-  --foreground: #ededed;
+  --surface: #141414;
+  --foreground: #fafafa;
+  --muted: #a3a3a3;
+  --border: #262626;
+  --accent: #a78bfa;
+  --accent-soft: #1e1b3a;
+  --gradient-primary: linear-gradient(135deg, #a78bfa 0%, #f472b6 50%, #fb923c 100%);
+  --gradient-soft: linear-gradient(135deg, #1e1b3a 0%, #3a1a2e 50%, #3a2818 100%);
+  --shadow-lg: 0 20px 40px -12px rgba(167, 139, 250, 0.2);
 }
 
 html {
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
-    "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01", "ss02";
+  line-height: 1.6;
+}
+
+/* Selection */
+::selection {
+  background: var(--accent);
+  color: white;
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Custom scrollbar (WebKit) */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+  border: 3px solid var(--background);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 200% 200%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+.gradient-bg {
+  background: var(--gradient-soft);
+}
+
+/* Grid pattern (subtle) */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(124, 58, 237, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124, 58, 237, 0.06) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse at center, black 40%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 75%);
+}
+
+html.dark .bg-grid {
+  background-image:
+    linear-gradient(rgba(167, 139, 250, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(167, 139, 250, 0.08) 1px, transparent 1px);
+}
+
+/* Animated gradient blobs */
+@keyframes float-blob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(40px, -50px) scale(1.15); }
+  66% { transform: translate(-30px, 30px) scale(0.9); }
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 0.9; }
+  50% { transform: scale(1.1); opacity: 0.3; }
+  100% { transform: scale(0.9); opacity: 0.9; }
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.6;
+  animation: float-blob 20s ease-in-out infinite;
+  pointer-events: none;
+}
+
+html.dark .blob {
+  opacity: 0.35;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out forwards;
+}
+
+/* Card lift */
+.card-lift {
+  transition:
+    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.3s ease;
+}
+.card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
 }
 
 /* rehype-pretty-code styling */
@@ -47,6 +199,8 @@ body {
   color: inherit;
   counter-reset: line;
   box-decoration-break: clone;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
 }
 
 [data-rehype-pretty-code-figure] code[data-line-numbers] > [data-line]::before {
@@ -65,19 +219,24 @@ body {
 }
 
 [data-rehype-pretty-code-figure] [data-highlighted-line] {
-  background-color: rgba(59, 130, 246, 0.1);
-  border-left-color: rgb(59, 130, 246);
+  background-color: rgba(124, 58, 237, 0.08);
+  border-left-color: rgb(124, 58, 237);
 }
 
 [data-rehype-pretty-code-title] {
   padding: 0.5rem 1rem;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  color: rgb(148 163 184);
-  background-color: rgb(30 41 59);
-  border-bottom: 1px solid rgb(51 65 85);
-  border-top-left-radius: 0.5rem;
-  border-top-right-radius: 0.5rem;
+  color: rgb(163 163 163);
+  background-color: rgba(0, 0, 0, 0.03);
+  border-bottom: 1px solid var(--border);
+  border-top-left-radius: 0.75rem;
+  border-top-right-radius: 0.75rem;
+  font-family: var(--font-mono);
+}
+
+html.dark [data-rehype-pretty-code-title] {
+  background-color: rgba(255, 255, 255, 0.03);
 }
 
 figure[data-rehype-pretty-code-figure]:has([data-rehype-pretty-code-title]) pre {
@@ -88,4 +247,22 @@ figure[data-rehype-pretty-code-figure]:has([data-rehype-pretty-code-title]) pre 
 /* Inline code inside link */
 a code {
   color: inherit !important;
+}
+
+/* Prose spacing */
+article > * + * {
+  margin-top: 0.5rem;
+}
+
+/* Reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
 }
