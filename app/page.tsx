@@ -25,8 +25,8 @@ export default function Home() {
               </h1>
               <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-600 dark:text-slate-400">
                 <strong>파이썬 몰라도 OK. 터미널 몰라도 OK.</strong> 브라우저에서
-                <strong> AI에게 부탁만 하면</strong> 챗봇·문서 도우미·이미지 앱이 완성됩니다.
-                Google AI Studio + v0.dev, 두 개의 마법 도구만 씁니다.
+                <strong> AI에게 부탁만 하면</strong> 랜딩 페이지·포트폴리오·챗봇·To-Do 앱이
+                실제 URL로 만들어집니다. 웹앱의 기초 개념을 하나씩 익히며 8주에 실전 프로젝트까지.
               </p>
               <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
                 <Link
@@ -143,31 +143,34 @@ export default function Home() {
             <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               이 두 개만 씁니다
             </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-center text-slate-600 dark:text-slate-400">
+              둘 다 브라우저에서 바로 접속. 설치 없음. 무료 시작 가능.
+            </p>
             <div className="mt-12 grid gap-6 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8">
-                <div className="mb-3 text-4xl">🎨</div>
-                <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-slate-100">
-                  Google AI Studio
-                </h3>
-                <p className="mb-3 text-sm text-purple-600 dark:text-purple-400 font-medium">
-                  Weeks 1~4 · aistudio.google.com
-                </p>
-                <p className="text-slate-600 dark:text-slate-400">
-                  구글이 만든 Gemini AI 놀이터입니다. 프롬프트만 짜면 AI가 어떻게 답할지
-                  즉시 확인하고, 만든 프롬프트를 공유 URL로 발급받을 수 있어요.
-                </p>
-              </div>
               <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8">
                 <div className="mb-3 text-4xl">✨</div>
                 <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-slate-100">
                   v0.dev
                 </h3>
                 <p className="mb-3 text-sm text-purple-600 dark:text-purple-400 font-medium">
-                  Weeks 5~8 · v0.dev
+                  Weeks 1~8 · v0.dev
                 </p>
                 <p className="text-slate-600 dark:text-slate-400">
-                  &ldquo;영수증 정리 앱 만들어줘&rdquo;라고 부탁하면 진짜 웹앱을 만들어줍니다.
+                  &ldquo;이런 페이지 만들어줘&rdquo;라고 한국어로 부탁하면 진짜 웹앱을 만들어줍니다.
                   대화하면서 계속 수정할 수 있고, 완성되면 원클릭으로 인터넷에 공개돼요.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8">
+                <div className="mb-3 text-4xl">▲</div>
+                <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-slate-100">
+                  Vercel
+                </h3>
+                <p className="mb-3 text-sm text-purple-600 dark:text-purple-400 font-medium">
+                  Weeks 1~8 · vercel.com
+                </p>
+                <p className="text-slate-600 dark:text-slate-400">
+                  v0가 만든 앱을 세상에 자동 배포해주는 서비스. 완성한 앱이 즉시 공개 URL로
+                  발급되고, 원하면 개인 도메인(myapp.com)도 연결할 수 있어요.
                 </p>
               </div>
             </div>
